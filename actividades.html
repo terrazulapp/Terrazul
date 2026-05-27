@@ -261,7 +261,7 @@ td{padding:9px 12px;color:var(--navy);vertical-align:middle}
       <div class="topbar-title" id="page-title">Panel de Control</div>
     </div>
     <div style="display:flex;align-items:center;gap:8px">
-      <span id="usuario-actual" style="font-size:12px;color:var(--gray-600);cursor:pointer" onclick="seleccionarUsuario(''); localStorage.removeItem('terrazul_usuario'); USUARIO_ACTUAL=''; initUsuario()"></span>
+      <span id="usuario-actual" style="font-size:12px;color:var(--gray-600);cursor:pointer" onclick="localStorage.removeItem('terrazul_usuario'); USUARIO_ACTUAL=''; initUsuario()"></span>
     </div>
     <div class="topbar-actions">
       <button class="btn btn-secondary" onclick="exportarBackup()">💾 Exportar backup</button>
@@ -768,6 +768,14 @@ function initUsuario() {
     actualizarUsuarioUI();
     return;
   }
+  // Resetear estado del modal
+  _usuarioPendiente = '';
+  document.getElementById('user-btns').style.display = 'flex';
+  document.getElementById('user-clave-wrap').style.display = 'none';
+  document.getElementById('user-clave-error').style.display = 'none';
+  const titulo = document.querySelector('#user-overlay .mt');
+  if (titulo) titulo.textContent = '👋 ¿Quién eres?';
+
   const btns = document.getElementById('user-btns');
   btns.innerHTML = RESPONSABLES.map(r => `
     <button class="btn btn-primary" style="width:100%;padding:12px;font-size:15px" onclick="seleccionarUsuario('${r.nombre}')">
@@ -776,7 +784,54 @@ function initUsuario() {
   document.getElementById('user-overlay').style.display = 'flex';
 }
 
+let _usuarioPendiente = ''; // usuario que está ingresando clave
+
 function seleccionarUsuario(nombre) {
+  _usuarioPendiente = nombre;
+  // Verificar si tiene clave configurada en la Sheet
+  const p = PERMISOS.find(x => x.resp === nombre);
+  const tieneClave = p && p.clave && p.clave.trim() !== '';
+  if (tieneClave) {
+    // Mostrar campo de clave
+    document.getElementById('user-btns').style.display = 'none';
+    const wrap = document.getElementById('user-clave-wrap');
+    wrap.style.display = 'block';
+    document.getElementById('user-clave-input').value = '';
+    document.getElementById('user-clave-error').style.display = 'none';
+    document.getElementById('user-clave-input').focus();
+    // Mostrar para quién es la clave
+    const titulo = document.querySelector('#user-overlay .mt');
+    if (titulo) titulo.textContent = `🔐 Hola, ${nombre}`;
+  } else {
+    // Sin clave configurada → entrar directo (solo para admins sin clave aún)
+    completarLogin(nombre);
+  }
+}
+
+function verificarClave() {
+  const ingresada = document.getElementById('user-clave-input').value.trim();
+  const p = PERMISOS.find(x => x.resp === _usuarioPendiente);
+  const claveCorrecta = p && p.clave ? p.clave.trim() : '';
+  if (ingresada === claveCorrecta) {
+    document.getElementById('user-clave-error').style.display = 'none';
+    completarLogin(_usuarioPendiente);
+  } else {
+    document.getElementById('user-clave-error').style.display = 'block';
+    document.getElementById('user-clave-input').value = '';
+    document.getElementById('user-clave-input').focus();
+  }
+}
+
+function volverSelector() {
+  _usuarioPendiente = '';
+  document.getElementById('user-btns').style.display = 'flex';
+  document.getElementById('user-clave-wrap').style.display = 'none';
+  document.getElementById('user-clave-error').style.display = 'none';
+  const titulo = document.querySelector('#user-overlay .mt');
+  if (titulo) titulo.textContent = '👋 ¿Quién eres?';
+}
+
+function completarLogin(nombre) {
   USUARIO_ACTUAL = nombre;
   localStorage.setItem('terrazul_usuario', nombre);
   document.getElementById('user-overlay').style.display = 'none';
@@ -908,36 +963,69 @@ function aplicarPermisos() {
 
 function renderPermisos() {
   const tbody = RESPONSABLES.map(r => {
-    const p = PERMISOS.find(x => x.resp === r.nombre) || {perfil:'Usuario', puedeVer:''};
+    const p = PERMISOS.find(x => x.resp === r.nombre) || {perfil:'Usuario', puedeVer:'', clave:''};
     const optsResps = RESPONSABLES.map(rr => 
       `<label style="display:block;font-size:12px;margin:2px 0">
         <input type="checkbox" value="${rr.nombre}" ${(p.puedeVer||'').includes(rr.nombre)?'checked':''} 
           onchange="updatePuedeVer('${r.nombre}',this)"> ${rr.nombre}
       </label>`).join('');
+    const nombreId = r.nombre.replace(/[^a-zA-Z0-9]/g,'_');
     return `<tr>
-      <td style="font-weight:600">${r.nombre}</td>
+      <td style="font-weight:600;white-space:nowrap">${r.nombre}</td>
       <td>
         <select onchange="updatePerfil('${r.nombre}',this)" style="font-size:12px;padding:4px">
           <option value="Admin" ${p.perfil==='Admin'?'selected':''}>👑 Admin</option>
           <option value="Usuario" ${p.perfil!=='Admin'?'selected':''}>👤 Usuario</option>
         </select>
       </td>
-      <td id="pv-${r.nombre}" style="font-size:12px">${p.perfil==='Admin'?'<span style="color:var(--gray-400)">Todos</span>':optsResps}</td>
+      <td id="pv-${nombreId}" style="font-size:12px">${p.perfil==='Admin'?'<span style="color:var(--gray-400)">Todos</span>':optsResps}</td>
+      <td>
+        <div style="display:flex;align-items:center;gap:4px">
+          <input type="password" id="clave-${nombreId}" value="${p.clave||''}"
+            placeholder="Sin clave"
+            style="width:110px;font-size:12px;padding:4px 7px;border:1px solid var(--gray-200);border-radius:6px"
+            oninput="updateClave('${r.nombre}',this)">
+          <button class="ib" title="Mostrar/ocultar" onclick="toggleVerClave('clave-${nombreId}',this)" style="font-size:11px">👁</button>
+        </div>
+        ${p.clave ? '<span style="font-size:10px;color:var(--green)">✓ configurada</span>' : '<span style="font-size:10px;color:var(--gray-400)">sin clave</span>'}
+      </td>
     </tr>`;
   }).join('');
   
   document.getElementById('permisos-tabla').innerHTML = `
     <table style="width:100%">
-      <thead><tr><th>Responsable</th><th>Perfil</th><th>Puede ver actividades de</th></tr></thead>
+      <thead><tr>
+        <th>Responsable</th>
+        <th>Perfil</th>
+        <th>Puede ver actividades de</th>
+        <th>🔐 Clave de acceso</th>
+      </tr></thead>
       <tbody>${tbody}</tbody>
-    </table>`;
+    </table>
+    <p style="font-size:11px;color:var(--gray-400);margin-top:10px">
+      💡 Usuarios sin clave pueden entrar sin contraseña. Presiona "Guardar cambios" para aplicar.
+    </p>`;
+}
+
+function toggleVerClave(inputId, btn) {
+  const inp = document.getElementById(inputId);
+  if (!inp) return;
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+  btn.textContent = inp.type === 'password' ? '👁' : '🙈';
+}
+
+function updateClave(nombre, input) {
+  let p = PERMISOS.find(x => x.resp === nombre);
+  if (!p) { p = {resp: nombre, perfil: 'Usuario', puedeVer: '', clave: ''}; PERMISOS.push(p); }
+  p.clave = input.value.trim();
 }
 
 function updatePerfil(nombre, sel) {
   const p = PERMISOS.find(x => x.resp === nombre);
   if (p) p.perfil = sel.value;
-  else PERMISOS.push({resp: nombre, perfil: sel.value, puedeVer: ''});
-  const cell = document.getElementById(`pv-${nombre}`);
+  else PERMISOS.push({resp: nombre, perfil: sel.value, puedeVer: '', clave: ''});
+  const nombreId = nombre.replace(/[^a-zA-Z0-9]/g,'_');
+  const cell = document.getElementById(`pv-${nombreId}`);
   if (sel.value === 'Admin') {
     cell.innerHTML = '<span style="color:var(--gray-400)">Todos</span>';
   } else {
@@ -950,17 +1038,19 @@ function updatePerfil(nombre, sel) {
 
 function updatePuedeVer(nombre, cb) {
   let p = PERMISOS.find(x => x.resp === nombre);
-  if (!p) { p = {resp: nombre, perfil: 'Usuario', puedeVer: ''}; PERMISOS.push(p); }
-  const checks = document.querySelectorAll(`#pv-${nombre} input[type=checkbox]`);
+  if (!p) { p = {resp: nombre, perfil: 'Usuario', puedeVer: '', clave: ''}; PERMISOS.push(p); }
+  const nombreId = nombre.replace(/[^a-zA-Z0-9]/g,'_');
+  const checks = document.querySelectorAll(`#pv-${nombreId} input[type=checkbox]`);
   p.puedeVer = [...checks].filter(c=>c.checked).map(c=>c.value).join(', ');
 }
 
 async function guardarPermisos() {
-  const rows = [['Responsable','Perfil','Puede ver'],
-    ...PERMISOS.map(p => [p.resp, p.perfil, p.puedeVer||''])];
+  const rows = [['Responsable','Perfil','Puede ver','Clave'],
+    ...PERMISOS.map(p => [p.resp, p.perfil, p.puedeVer||'', p.clave||''])];
   await sheetWrite('Permisos', rows);
   toast('Permisos guardados','s');
   aplicarPermisos();
+  renderPermisos(); // re-renderizar para actualizar los indicadores ✓/sin clave
 }
 
 
