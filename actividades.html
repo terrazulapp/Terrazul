@@ -970,16 +970,12 @@ function renderPermisos() {
           onchange="updatePuedeVer('${r.nombre}',this)"> ${rr.nombre}
       </label>`).join('');
     const nombreId = r.nombre.replace(/[^a-zA-Z0-9]/g,'_');
-    return `<tr>
-      <td style="font-weight:600;white-space:nowrap">${r.nombre}</td>
-      <td>
-        <select onchange="updatePerfil('${r.nombre}',this)" style="font-size:12px;padding:4px">
-          <option value="Admin" ${p.perfil==='Admin'?'selected':''}>👑 Admin</option>
-          <option value="Usuario" ${p.perfil!=='Admin'?'selected':''}>👤 Usuario</option>
-        </select>
-      </td>
-      <td id="pv-${nombreId}" style="font-size:12px">${p.perfil==='Admin'?'<span style="color:var(--gray-400)">Todos</span>':optsResps}</td>
-      <td>
+    const esPropiaFila = r.nombre === USUARIO_ACTUAL;
+
+    // Columna clave: editable solo si es la propia fila
+    let celdaClave;
+    if (esPropiaFila) {
+      celdaClave = `
         <div style="display:flex;align-items:center;gap:4px">
           <input type="password" id="clave-${nombreId}" value="${p.clave||''}"
             placeholder="Sin clave"
@@ -987,8 +983,32 @@ function renderPermisos() {
             oninput="updateClave('${r.nombre}',this)">
           <button class="ib" title="Mostrar/ocultar" onclick="toggleVerClave('clave-${nombreId}',this)" style="font-size:11px">👁</button>
         </div>
-        ${p.clave ? '<span style="font-size:10px;color:var(--green)">✓ configurada</span>' : '<span style="font-size:10px;color:var(--gray-400)">sin clave</span>'}
+        ${p.clave ? '<span style="font-size:10px;color:var(--green)">✓ configurada</span>' : '<span style="font-size:10px;color:var(--gray-400)">sin clave</span>'}`;
+    } else {
+      const tienesClave = p.clave && p.clave.trim() !== '';
+      celdaClave = `
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          ${tienesClave
+            ? '<span style="font-size:12px;color:var(--gray-400);letter-spacing:3px">••••••</span>'
+            : '<span style="font-size:10px;color:var(--gray-400)">sin clave</span>'}
+          ${tienesClave
+            ? `<button class="btn btn-secondary btn-sm" style="font-size:11px;padding:3px 8px;color:var(--red);border-color:var(--red)" onclick="resetearClave('${r.nombre}')">🔓 Resetear</button>`
+            : ''}
+        </div>`;
+    }
+
+    return `<tr ${esPropiaFila ? 'style="background:rgba(42,157,143,0.05)"' : ''}>
+      <td style="font-weight:600;white-space:nowrap">
+        ${r.nombre}${esPropiaFila ? ' <span style="font-size:10px;color:#2A9D8F;font-weight:400">(tú)</span>' : ''}
       </td>
+      <td>
+        <select onchange="updatePerfil('${r.nombre}',this)" style="font-size:12px;padding:4px">
+          <option value="Admin" ${p.perfil==='Admin'?'selected':''}>👑 Admin</option>
+          <option value="Usuario" ${p.perfil!=='Admin'?'selected':''}>👤 Usuario</option>
+        </select>
+      </td>
+      <td id="pv-${nombreId}" style="font-size:12px">${p.perfil==='Admin'?'<span style="color:var(--gray-400)">Todos</span>':optsResps}</td>
+      <td>${celdaClave}</td>
     </tr>`;
   }).join('');
   
@@ -1003,7 +1023,7 @@ function renderPermisos() {
       <tbody>${tbody}</tbody>
     </table>
     <p style="font-size:11px;color:var(--gray-400);margin-top:10px">
-      💡 Usuarios sin clave pueden entrar sin contraseña. Presiona "Guardar cambios" para aplicar.
+      💡 Solo puedes cambiar tu propia clave. Las claves ajenas no son visibles.
     </p>`;
 }
 
@@ -1018,6 +1038,17 @@ function updateClave(nombre, input) {
   let p = PERMISOS.find(x => x.resp === nombre);
   if (!p) { p = {resp: nombre, perfil: 'Usuario', puedeVer: '', clave: ''}; PERMISOS.push(p); }
   p.clave = input.value.trim();
+}
+
+async function resetearClave(nombre) {
+  if (!confirm(`¿Resetear la clave de ${nombre}?\n\nEl usuario podrá entrar sin contraseña hasta que configure una nueva.`)) return;
+  let p = PERMISOS.find(x => x.resp === nombre);
+  if (p) p.clave = '';
+  const rows = [['Responsable','Perfil','Puede ver','Clave'],
+    ...PERMISOS.map(p => [p.resp, p.perfil, p.puedeVer||'', p.clave||''])];
+  await sheetWrite('Permisos', rows);
+  toast(`Clave de ${nombre} reseteada`, 'w');
+  renderPermisos();
 }
 
 function updatePerfil(nombre, sel) {
@@ -1325,11 +1356,12 @@ function nav(page, el) {
 // STATS
 // ======================================================
 function renderStats() {
-  const act = ACTIVIDADES.filter(a => a.etapa !== 'Terminado');
+  const visibles = ACTIVIDADES.filter(a => puedeVerActividad(a));
+  const act = visibles.filter(a => a.etapa !== 'Terminado');
   const atr = act.filter(a => dias(a.obj,a.etapa) < 0).length;
   const aler = act.filter(a => { const d=dias(a.obj,a.etapa); return d!==null&&d>=0&&d<=ad(); }).length;
   const ok = act.filter(a => { const d=dias(a.obj,a.etapa); return d!==null&&d>ad(); }).length;
-  const term = ACTIVIDADES.filter(a => a.etapa==='Terminado').length;
+  const term = visibles.filter(a => a.etapa==='Terminado').length;
   document.getElementById('stats-grid').innerHTML = `
     <div class="stat-card c-total" style="cursor:pointer" onclick="filtrarPorEstado('todos')" title="Ver todas las actividades"><div class="stat-label">Activas</div><div class="stat-num">${act.length}</div><div class="stat-sub">${term} terminadas</div></div>
     <div class="stat-card c-red" style="cursor:pointer" onclick="filtrarPorEstado('atrasado')" title="Ver atrasadas"><div class="stat-label">Atrasadas</div><div class="stat-num" style="color:var(--red)">${atr}</div><div class="stat-sub">Requieren atención urgente</div></div>
@@ -1342,6 +1374,7 @@ function renderStats() {
 // ======================================================
 function renderAlert() {
   const list = ACTIVIDADES
+    .filter(a => puedeVerActividad(a))
     .filter(a => { const d=dias(a.obj,a.etapa); return d!==null&&d<=ad(); })
     .sort((a,b) => dias(a.obj,a.etapa)-dias(b.obj,b.etapa));
   const tb = document.getElementById('alert-tbody');
@@ -1927,7 +1960,8 @@ function renderRemPreview() {
 // BACKUP EXPORT / IMPORT
 // ======================================================
 function exportarBackup() {
-  const data={version:2,fecha:new Date().toISOString(),actividades:ACTIVIDADES,empresas:EMPRESAS,responsables:RESPONSABLES,nextId};
+  const actsVisibles = ACTIVIDADES.filter(a => puedeVerActividad(a));
+  const data={version:2,fecha:new Date().toISOString(),actividades:actsVisibles,empresas:EMPRESAS,responsables:RESPONSABLES,nextId};
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));
   a.download=`Terrazul_backup_${hoy()}.json`; a.click();
@@ -2226,7 +2260,7 @@ async function svgToPngBase64(svgB64, w, h) {
 }
 
 async function exportarActividades() {
-  const activas = ACTIVIDADES.filter(a => a.etapa !== 'Terminado');
+  const activas = ACTIVIDADES.filter(a => a.etapa !== 'Terminado' && puedeVerActividad(a));
   if (!activas.length) { toast('No hay actividades activas para exportar','w'); return; }
 
   toast('Generando Excel...','s');
