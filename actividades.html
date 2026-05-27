@@ -305,7 +305,7 @@ td{padding:9px 12px;color:var(--navy);vertical-align:middle}
           <div class="pill" onclick="setPill(this,'atrasado')">Atrasados</div>
           <div class="pill" onclick="setPill(this,'alerta')">Alerta</div>
           <div class="pill" onclick="setPill(this,'ok')">En plazo</div>
-          <div class="pill" onclick="setPill(this,'terminado')">Terminados</div>
+          <div class="pill" onclick="setPill(this,'terminado')" style="border-style:dashed">✓ Terminados</div>
         </div>
       </div>
       <div style="display:flex;gap:6px;align-self:flex-end;margin-left:auto">
@@ -420,17 +420,11 @@ td{padding:9px 12px;color:var(--navy);vertical-align:middle}
         <div style="flex:1"><div style="font-weight:600;font-size:13px">Actividades Atrasadas</div><div style="font-size:11px;color:var(--gray-400)">Notificar cuando la fecha objetivo ya venció</div></div>
         <span class="badge badge-red">Urgente</span>
       </div>
-      <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--gray-100);border-radius:var(--rs);margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--gray-100);border-radius:var(--rs)">
         <button class="toggle on" onclick="this.classList.toggle('on')"></button>
         <div style="flex:1"><div style="font-weight:600;font-size:13px">Próximas a vencer — menos de <input type="number" id="alert-days" value="5" min="1" max="30" style="width:42px;display:inline;padding:2px 4px" onchange="renderAll()"> días</div></div>
         <span class="badge badge-amber">Alerta</span>
       </div>
-      <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--gray-100);border-radius:var(--rs);margin-bottom:14px">
-        <button class="toggle" onclick="this.classList.toggle('on')"></button>
-        <div style="flex:1"><div style="font-weight:600;font-size:13px">Resumen Semanal (lunes)</div></div>
-        <span class="badge badge-teal">Semanal</span>
-      </div>
-      <div><label class="fl">Email con copia (CC)</label><input type="email" id="cc-email" placeholder="supervisor@terrazul.cl" style="width:280px"></div>
     </div>
     <div class="stitle">📨 Recordatorios Pendientes</div>
     <div id="rem-preview"></div>
@@ -1363,7 +1357,7 @@ function renderStats() {
   const ok = act.filter(a => { const d=dias(a.obj,a.etapa); return d!==null&&d>ad(); }).length;
   const term = visibles.filter(a => a.etapa==='Terminado').length;
   document.getElementById('stats-grid').innerHTML = `
-    <div class="stat-card c-total" style="cursor:pointer" onclick="filtrarPorEstado('todos')" title="Ver todas las actividades"><div class="stat-label">Activas</div><div class="stat-num">${act.length}</div><div class="stat-sub">${term} terminadas</div></div>
+    <div class="stat-card c-total" style="cursor:pointer" onclick="filtrarPorEstado('todos')" title="Ver todas las actividades"><div class="stat-label">Activas</div><div class="stat-num">${act.length}</div><div class="stat-sub" style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted" onclick="event.stopPropagation();filtrarPorEstado('terminado')" title="Ver historial">${term} terminadas</div></div>
     <div class="stat-card c-red" style="cursor:pointer" onclick="filtrarPorEstado('atrasado')" title="Ver atrasadas"><div class="stat-label">Atrasadas</div><div class="stat-num" style="color:var(--red)">${atr}</div><div class="stat-sub">Requieren atención urgente</div></div>
     <div class="stat-card c-amber" style="cursor:pointer" onclick="filtrarPorEstado('alerta')" title="Ver próximas a vencer"><div class="stat-label">Próximas a vencer</div><div class="stat-num" style="color:var(--amber)">${aler}</div><div class="stat-sub">≤ ${ad()} días restantes</div></div>
     <div class="stat-card c-green" style="cursor:pointer" onclick="filtrarPorEstado('ok')" title="Ver en plazo"><div class="stat-label">En plazo</div><div class="stat-num" style="color:var(--green)">${ok}</div><div class="stat-sub">Sin urgencia inmediata</div></div>`;
@@ -1396,51 +1390,62 @@ function renderActs() {
   const buscar = document.getElementById('s-buscar').value.toLowerCase();
   const fc = document.getElementById('s-cliente').value;
   const fr = document.getElementById('s-resp').value;
+  const verTerminados = pillActivo === 'terminado';
+
   let list = ACTIVIDADES.filter(a => {
     if (!puedeVerActividad(a)) return false;
-    if (fc && a.cliente!==fc) return false;
-    if (fr && a.resp!==fr) return false;
+    // Separar terminadas del resto según pill activo
+    if (verTerminados) {
+      if (a.etapa !== 'Terminado') return false;
+    } else {
+      if (a.etapa === 'Terminado') return false;
+      if (pillActivo !== 'todos' && estadoKey(dias(a.obj,a.etapa),a.etapa) !== pillActivo) return false;
+    }
+    if (fc && a.cliente !== fc) return false;
+    if (fr && a.resp !== fr) return false;
     if (buscar && !a.empresa.toLowerCase().includes(buscar) && !a.tarea.toLowerCase().includes(buscar) && !a.desc.toLowerCase().includes(buscar)) return false;
-    if (pillActivo!=='todos' && estadoKey(dias(a.obj,a.etapa),a.etapa)!==pillActivo) return false;
     return true;
-  }).sort(prioridadSort);
+  }).sort(verTerminados
+    ? (a,b) => (b.obj||'').localeCompare(a.obj||'') // terminadas: más reciente primero
+    : prioridadSort
+  );
 
   document.getElementById('count-lbl').textContent = `${list.length} actividad${list.length!==1?'es':''}`;
   const tb = document.getElementById('acts-tbody');
-  if (!list.length) { tb.innerHTML=`<tr><td colspan="11" class="no-rows">Sin resultados</td></tr>`; return; }
+  if (!list.length) { tb.innerHTML=`<tr><td colspan="11" class="no-rows">${verTerminados ? '📭 No hay actividades terminadas' : 'Sin resultados'}</td></tr>`; return; }
   tb.innerHTML = list.map(a => {
     const d = dias(a.obj,a.etapa);
-    return `<tr style="cursor:pointer" onclick="verDetalle(${a.id})">
+    const esTerminada = a.etapa === 'Terminado';
+    return `<tr style="cursor:pointer${esTerminada ? ';opacity:0.75' : ''}" onclick="verDetalle(${a.id})">
       <td>${empHTML(a.empresa)}</td>
       <td style="font-weight:500">${a.tarea}</td>
       <td style="font-size:11px;color:var(--gray-600);max-width:190px">${a.desc}</td>
-      <td><span class="badge badge-teal" style="font-size:9px;white-space:normal;line-height:1.4">${a.etapa}</span></td>
+      <td><span class="badge badge-gray" style="font-size:9px;white-space:normal;line-height:1.4">${a.etapa}</span></td>
       <td style="font-weight:500">${a.resp}</td>
       <td style="font-size:11px;color:var(--gray-400)">${fecha(a.sol)}</td>
       <td style="font-size:11px">${fecha(a.obj)}</td>
-      <td onclick="event.stopPropagation()">${prioridadBadge(a.prior||'auto',d,a.id)}</td>
-      <td>${diasChip(d,a.etapa)}</td>
+      <td onclick="event.stopPropagation()">${esTerminada ? '<span style="color:var(--gray-400)">—</span>' : prioridadBadge(a.prior||'auto',d,a.id)}</td>
+      <td>${esTerminada ? '<span style="color:var(--gray-400)">—</span>' : diasChip(d,a.etapa)}</td>
       <td>${estadoBadge(d,a.etapa)}</td>
       <td onclick="event.stopPropagation()"><div class="td-actions">
         <button class="ib edit" onclick="abrirModal(${a.id})" title="Editar">✏️</button>
         ${a.link ? `<a href="${a.link}" target="_blank" class="ib" title="Ver documentos" style="text-decoration:none">📎</a>` : ''}
-        <button class="ib mail" onclick="emailAct(${a.id})" title="Recordatorio">📧</button>
+        ${esTerminada ? '' : `<button class="ib mail" onclick="emailAct(${a.id})" title="Recordatorio">📧</button>`}
         <button class="ib del" onclick="eliminarAct(${a.id})" title="Eliminar">🗑️</button>
       </div></td></tr>`;
   }).join('');
 }
 
 function filtrarPorEstado(estado) {
-  // Navegar a la página de actividades
   const navEl = [...document.querySelectorAll('.nav-item')].find(el => el.textContent.includes('Actividades'));
   nav('actividades', navEl);
-  // Activar el pill correspondiente
   setTimeout(() => {
     const pill = [...document.querySelectorAll('.pill')].find(p => {
       if (estado === 'todos') return p.textContent.trim() === 'Todos';
       if (estado === 'atrasado') return p.textContent.trim() === 'Atrasados';
       if (estado === 'alerta') return p.textContent.trim() === 'Alerta';
       if (estado === 'ok') return p.textContent.trim() === 'En plazo';
+      if (estado === 'terminado') return p.textContent.includes('Terminados');
       return false;
     });
     if (pill) setPill(pill, estado);
