@@ -450,7 +450,8 @@ td{padding:9px 12px;color:var(--navy);vertical-align:middle}
           <div style="display:flex;gap:8px;align-items:center"><span style="font-size:11px;color:var(--gray-400);white-space:nowrap">o nuevo:</span><input type="text" id="ae-cliente-nuevo" placeholder="Nombre nuevo cliente"></div>
         </div>
         <div style="margin-bottom:10px"><label class="fl">RUT</label><input type="text" id="ae-rut" placeholder="77.123.456-7"></div>
-        <div style="margin-bottom:14px"><label class="fl">Nombre Empresa</label><input type="text" id="ae-nombre" placeholder="Nombre SpA"></div>
+        <div style="margin-bottom:10px"><label class="fl">Nombre Empresa</label><input type="text" id="ae-nombre" placeholder="Nombre SpA"></div>
+        <div style="margin-bottom:14px"><label class="fl">Email de contacto</label><input type="email" id="ae-email" placeholder="contacto@dominio.com"></div>
         <div style="display:flex;gap:8px">
           <button class="btn btn-primary" style="flex:1" onclick="guardarEmp()">Guardar</button>
           <button class="btn btn-secondary" onclick="cancelarEmp()">Cancelar</button>
@@ -477,7 +478,7 @@ td{padding:9px 12px;color:var(--navy);vertical-align:middle}
     </div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Cliente</th><th>RUT</th><th>Empresa</th><th>Trámites activos</th><th>Acciones</th></tr></thead>
+        <thead><tr><th>Cliente</th><th>RUT</th><th>Empresa</th><th>Email contacto</th><th>Trámites activos</th><th>Acciones</th></tr></thead>
         <tbody id="ae-tbody"></tbody>
       </table>
     </div>
@@ -1318,7 +1319,7 @@ function rowsToActs(rows) {
   }));
 }
 function rowsToEmps(rows) {
-  return rows.slice(1).filter(r=>r[0]).map(r=>[r[0],r[1],r[2]]);
+  return rows.slice(1).filter(r=>r[0]).map(r=>[r[0],r[1],r[2],r[3]||'']);
 }
 function rowsToResps(rows) {
   return rows.slice(1).filter(r=>r[0]).map(r=>({nombre:r[0],email:r[1]}));
@@ -1329,7 +1330,7 @@ function actsToRows(acts) {
     ...acts.map(a=>[a.id,a.cliente,a.empresa,a.tarea,a.desc,a.sol,a.resp,a.etapa,a.obj,a.ubic,a.obs,a.link||'',a.prior||'auto',a.creadoPor||'',a.fechaCreacion||''])];
 }
 function empsToRows(emps) {
-  return [['cliente','rut','nombre'],...emps];
+  return [['cliente','rut','nombre','email'],...emps.map(e=>[e[0],e[1],e[2],e[3]||''])];
 }
 function respsToRows(resps) {
   return [['nombre','email'],...resps.map(r=>[r.nombre,r.email])];
@@ -1894,13 +1895,13 @@ function renderAeStats() {
 function renderEmpAdmin() {
   const buscar=(document.getElementById('ae-buscar')?.value||'').toLowerCase();
   const fc=document.getElementById('ae-filter')?.value||'';
-  const list=EMPRESAS.map((e,i)=>({c:e[0],rut:e[1],nom:e[2],i})).filter(e=>{
+  const list=EMPRESAS.map((e,i)=>({c:e[0],rut:e[1],nom:e[2],email:e[3]||'',i})).filter(e=>{
     if(fc&&e.c!==fc)return false;
     if(buscar&&!e.rut.toLowerCase().includes(buscar)&&!e.nom.toLowerCase().includes(buscar)&&!e.c.toLowerCase().includes(buscar))return false;
     return true;
   });
   const tb=document.getElementById('ae-tbody');
-  if(!list.length){tb.innerHTML=`<tr><td colspan="5" class="no-rows">Sin resultados</td></tr>`;return;}
+  if(!list.length){tb.innerHTML=`<tr><td colspan="6" class="no-rows">Sin resultados</td></tr>`;return;}
   tb.innerHTML=list.map(e=>{
     const nv=`${e.c} – ${e.rut} ${e.nom}`;
     const ct=ACTIVIDADES.filter(a=>a.empresa===nv&&a.etapa!=='Terminado').length;
@@ -1908,6 +1909,7 @@ function renderEmpAdmin() {
       <td><span class="badge badge-teal">${e.c}</span></td>
       <td style="font-size:11px;font-family:monospace;color:var(--gray-400)">${e.rut}</td>
       <td style="font-weight:500">${e.nom}</td>
+      <td style="font-size:11px;color:var(--gray-500)">${e.email||'<span style="color:var(--gray-300)">—</span>'}</td>
       <td>${ct>0?`<span class="badge badge-amber">${ct}</span>`:'<span style="color:var(--gray-400);font-size:11px">—</span>'}</td>
       <td><div class="td-actions">
         <button class="ib edit" onclick="editarEmp(${e.i})">✏️</button>
@@ -1923,6 +1925,7 @@ function editarEmp(i) {
   document.getElementById('ae-cliente-nuevo').value='';
   document.getElementById('ae-rut').value=e[1];
   document.getElementById('ae-nombre').value=e[2];
+  document.getElementById('ae-email').value=e[3]||'';
 }
 
 function cancelarEmp() {
@@ -1932,6 +1935,7 @@ function cancelarEmp() {
   document.getElementById('ae-cliente-nuevo').value='';
   document.getElementById('ae-rut').value='';
   document.getElementById('ae-nombre').value='';
+  document.getElementById('ae-email').value='';
 }
 
 function limpiarDuplicados() {
@@ -1960,16 +1964,17 @@ function guardarEmp() {
   const cl=clNv||clEx;
   const rut=document.getElementById('ae-rut').value.trim();
   const nom=document.getElementById('ae-nombre').value.trim();
+  const email=document.getElementById('ae-email').value.trim();
   if(!cl){toast('Seleccioná o ingresá un cliente','e');return;}
   if(!rut){toast('Ingresá el RUT','e');return;}
   if(!nom){toast('Ingresá el nombre','e');return;}
   const dup=EMPRESAS.findIndex(e=>e[1]===rut);
   if(dup!==-1&&dup!==editEmpIdx){toast(`RUT ${rut} ya existe (${EMPRESAS[dup][2]})`,'e');return;}
   if(editEmpIdx!==null){
-    EMPRESAS[editEmpIdx]=[cl,rut,nom];
+    EMPRESAS[editEmpIdx]=[cl,rut,nom,email];
     toast('Empresa actualizada','s');
   } else {
-    EMPRESAS.push([cl,rut,nom]);
+    EMPRESAS.push([cl,rut,nom,email]);
     toast(`Empresa "${nom}" agregada`,'s');
   }
   cancelarEmp(); sincAeSelects(); sincSelects(); renderAeStats(); renderEmpAdmin(); renderClientes(); guardarEnSheet('Empresas');
