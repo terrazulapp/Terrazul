@@ -227,6 +227,25 @@ td{padding:9px 12px;color:var(--navy);vertical-align:middle}
   </div>
 </div>
 
+<!-- ERROR DE CONEXIÓN -->
+<div class="overlay" id="overlay-error-conexion" style="display:none;z-index:10000;background:rgba(12,12,89,0.95)">
+  <div class="modal" style="max-width:420px;text-align:center">
+    <div class="mb" style="padding:36px 28px;display:flex;flex-direction:column;align-items:center;gap:16px">
+      <div style="font-size:48px">⚠️</div>
+      <div style="font-family:var(--fd);font-size:20px;color:var(--navy)">Sin conexión con la nube</div>
+      <p style="font-size:13px;color:var(--gray-600);line-height:1.6">
+        No se pudo conectar con Google Sheets.<br>
+        Verifica tu conexión a internet y que el Apps Script esté activo.
+      </p>
+      <div id="error-conexion-detalle" style="font-size:11px;color:var(--gray-400);background:var(--gray-100);padding:8px 12px;border-radius:8px;width:100%;word-break:break-all;display:none"></div>
+      <div style="display:flex;gap:10px;width:100%">
+        <button class="btn btn-secondary" style="flex:1" onclick="document.getElementById('error-conexion-detalle').style.display = document.getElementById('error-conexion-detalle').style.display==='none'?'block':'none'">🔍 Ver detalle</button>
+        <button class="btn btn-primary" style="flex:1" onclick="reintentar()">🔄 Reintentar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL CAMBIAR CLAVE -->
 <div class="overlay" id="modal-cambiar-clave" style="display:none;z-index:9999;background:rgba(12,12,89,0.92)">
   <div class="modal" style="max-width:360px;text-align:center">
@@ -266,6 +285,7 @@ td{padding:9px 12px;color:var(--navy);vertical-align:middle}
     <div class="nav-sec">Principal</div>
     <div class="nav-item active" onclick="nav('dashboard',this)">📋 Panel de Control</div>
     <div class="nav-item" onclick="nav('actividades',this)">✅ Actividades</div>
+    <div class="nav-item" onclick="nav('resumen-clientes',this)">🏢 Resumen por Cliente</div>
     <div class="nav-sec admin-only" style="display:none">Configuración</div>
     <div class="nav-item admin-only" style="display:none" onclick="nav('responsables',this)">👤 Responsables</div>
     <div class="nav-item admin-only" style="display:none" onclick="nav('admin-resp',this)">⚙️ Administrar Responsables</div>
@@ -314,6 +334,26 @@ td{padding:9px 12px;color:var(--navy);vertical-align:middle}
         <tbody id="alert-tbody"></tbody>
       </table>
     </div>
+    <div class="stitle" style="margin-top:24px">🏢 Resumen por Cliente</div>
+    <div id="resumen-clientes-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-bottom:8px"></div>
+  </div>
+
+  <!-- RESUMEN POR CLIENTE -->
+  <div class="page" id="page-resumen-clientes">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+      <div class="stitle" style="margin-bottom:0">🏢 Resumen por Cliente y Empresa</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span class="filter-label">Mostrar:</span>
+        <select id="rc-filtro-estado" onchange="renderResumenClientes()" style="font-size:12px;padding:5px 8px">
+          <option value="activas">Solo activas</option>
+          <option value="todas">Activas + terminadas</option>
+        </select>
+        <select id="rc-filtro-resp" onchange="renderResumenClientes()" style="font-size:12px;padding:5px 8px">
+          <option value="">Todos los responsables</option>
+        </select>
+      </div>
+    </div>
+    <div id="resumen-clientes-detalle"></div>
   </div>
 
   <!-- ACTIVIDADES -->
@@ -741,39 +781,7 @@ let EMPRESAS = [
   ['RRG','76.618.666-1','Puntiagudo Energy SpA'],
 ];
 
-let ACTIVIDADES = [
-  {id:1,cliente:'Talinay',empresa:'Talinay – 77.131.386-8 La Sierra SpA',tarea:'Verificación de actividad',
-   desc:'Solicitud de verificacion de actividad de La Sierra SpA para comenzar a facturar con IVA.',
-   sol:'2026-01-13',resp:'Valentín',etapa:'Presentación SII',obj:'2026-01-30',ubic:'Enviado a SII',
-   obs:'Se solicitó 13/01 vía mail por Sandra. Validar si información entregada está completa.'},
-  {id:2,cliente:'Talinay',empresa:'Talinay – 77.324.561-4 Parque Solar La Rosa II SpA',tarea:'Peticiones administrativas especiales',
-   desc:'Bloqueo de facturación. Sociedad fue contaminada por operaciones con proveedores riesgosos.',
-   sol:'2025-11-05',resp:'Valentín',etapa:'Revisión solicitud',obj:'2026-02-12',ubic:'Enviado a SII - Complemento información',
-   obs:'Presentación petición administrativa del 05/11/2025, asignada el 27/11/2025.'},
-  {id:3,cliente:'Talinay',empresa:'Talinay – 77.498.289-2 PMGD Holdco SpA',tarea:'Actualización de capital',
-   desc:'Presentación suscripción y pago de acciones. Documento rechazado por problemas de validación de firmas.',
-   sol:'2025-11-28',resp:'Valentín',etapa:'Presentación SII',obj:'2025-12-17',ubic:'Cliente envía antecedentes faltantes',
-   obs:'16/01 cliente envió documento de suscripción y pago firmado ante notario.'},
-  {id:4,cliente:'Talinay',empresa:'Talinay – 76.780.504-7 Tralka SpA',tarea:'Actualización de capital',
-   desc:'Aumento de capital pagado con inversiones. SII interpretó escritura de forma errónea.',
-   sol:'2025-12-19',resp:'Valentín',etapa:'Presentación SII',obj:'2026-01-08',ubic:'Observado por SII',
-   obs:'Última solicitud de corrección a SII el 09/01. SII devolvió trámite 14/01.'},
-  {id:5,cliente:'RRG',empresa:'RRG – 78.338.025-0 Andes Hazelnuts Landco SpA',tarea:'Obtención de RUT/Clave',
-   desc:'Se necesita RUT e inicio de actividades. Sistema de SII presenta errores.',
-   sol:'2026-01-02',resp:'Valentín',etapa:'Revisión solicitud',obj:'2026-01-21',ubic:'En revisión SII',
-   obs:'13/01 se presentó ticket de urgencia.'},
-  {id:6,cliente:'RRG',empresa:'RRG – 78.338.029-3 Andes Hazelnuts Opco SpA',tarea:'Obtención de RUT/Clave',
-   desc:'Se necesita RUT e inicio de actividades. Sistema de SII presenta errores.',
-   sol:'2026-01-02',resp:'Valentín',etapa:'Presentación SII',obj:'2026-01-21',ubic:'En revisión SII',
-   obs:'13/01 se presentó ticket de urgencia, se debe informar al cliente.'},
-  {id:7,cliente:'RRG',empresa:'RRG – 77.122.333-8 Persea Landco SpA',tarea:'Fusión',
-   desc:'Se presentó fusión Persea Landco y Persea Opco. Se entregaron antecedentes adicionales.',
-   sol:'2025-02-26',resp:'Valentín',etapa:'Presentación SII',obj:'2025-04-17',ubic:'Rechazado por SII',
-   obs:'08/01 se entregaron últimos antecedentes. 15/01 SII notificó rechazo.'},
-  {id:8,cliente:'RRG',empresa:'RRG – 76.618.666-1 Puntiagudo Energy SpA',tarea:'Actualización de domicilio',
-   desc:'Se debe informar sucursal donde está ubicada la planta solar.',
-   sol:'2026-01-12',resp:'Valentín',etapa:'Presentación SII',obj:'2026-01-29',ubic:'En revisión SII',obs:''},
-];
+let ACTIVIDADES = [];
 
 const TIEMPOS = {
   'Actualización de capital':13,'Actualización de domicilio':13,'Actualización de socios':13,
@@ -1393,7 +1401,9 @@ async function cargarDesdeSheet() {
       }
     }
   } catch(e) {
-    toast('Sin conexión — usando datos locales','w');
+    mostrarCargando(false);
+    mostrarErrorConexion(e);
+    return;
   }
   mostrarCargando(false);
   sincSelects();
@@ -1402,6 +1412,18 @@ async function cargarDesdeSheet() {
   renderAll();
   aplicarPermisos();
   setTimeout(initUsuario, 500);
+}
+
+function mostrarErrorConexion(e) {
+  const overlay = document.getElementById('overlay-error-conexion');
+  const detalle = document.getElementById('error-conexion-detalle');
+  if (detalle && e) detalle.textContent = e.message || String(e);
+  if (overlay) overlay.style.display = 'flex';
+}
+
+async function reintentar() {
+  document.getElementById('overlay-error-conexion').style.display = 'none';
+  await cargarDesdeSheet();
 }
 
 function mostrarCargando(show) {
@@ -1420,6 +1442,7 @@ document.addEventListener('DOMContentLoaded', () => {
 function renderAll() {
   renderStats(); renderAlert(); renderActs();
   renderResps(); renderClientes();
+  renderResumenClientesDashboard();
 }
 
 // ======================================================
@@ -1443,13 +1466,15 @@ function nav(page, el) {
   document.getElementById('sidebar-overlay').classList.remove('open');
   const T = {dashboard:'Panel de Control',actividades:'Actividades',responsables:'Responsables',
     'admin-resp':'Administrar Responsables',clientes:'Clientes y Empresas',
-    'admin-emp':'Administrar Empresas',recordatorios:'Recordatorios','desde-email':'Crear desde Email'};
+    'admin-emp':'Administrar Empresas',recordatorios:'Recordatorios','desde-email':'Crear desde Email',
+    'resumen-clientes':'Resumen por Cliente'};
   document.getElementById('page-title').textContent = T[page] || '';
   if (page === 'admin-emp') initAdminEmp();
   if (page === 'admin-resp') initAdminResp();
   if (page === 'recordatorios') renderRemPreview();
   if (page === 'desde-email') initDesdeEmail();
   if (page === 'permisos') renderPermisos();
+  if (page === 'resumen-clientes') renderResumenClientes();
 }
 
 // ======================================================
@@ -1490,8 +1515,168 @@ function renderAlert() {
 }
 
 // ======================================================
-// ACTIVIDADES TABLE
+// RESUMEN POR CLIENTE
 // ======================================================
+function renderResumenClientesDashboard() {
+  const grid = document.getElementById('resumen-clientes-grid');
+  if (!grid) return;
+  const visibles = ACTIVIDADES.filter(a => puedeVerActividad(a) && a.etapa !== 'Terminado');
+  const clientes = [...new Set(visibles.map(a => a.cliente))].sort();
+  if (!clientes.length) { grid.innerHTML = '<p style="font-size:13px;color:var(--gray-400)">Sin actividades activas.</p>'; return; }
+
+  grid.innerHTML = clientes.map(cli => {
+    const acts = visibles.filter(a => a.cliente === cli);
+    const atr = acts.filter(a => dias(a.obj,a.etapa) < 0).length;
+    const aler = acts.filter(a => { const d=dias(a.obj,a.etapa); return d!==null&&d>=0&&d<=ad(); }).length;
+    const ok = acts.filter(a => { const d=dias(a.obj,a.etapa); return d!==null&&d>ad(); }).length;
+    const empresas = [...new Set(acts.map(a => a.empresa))].length;
+    const colorBorde = atr > 0 ? 'var(--red)' : aler > 0 ? 'var(--amber)' : 'var(--green)';
+    return `
+      <div style="background:#fff;border-radius:12px;padding:16px;box-shadow:var(--sh);border-left:4px solid ${colorBorde};cursor:pointer"
+           onclick="irResumenCliente('${cli}')">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <div style="font-family:var(--fd);font-size:16px;color:var(--navy)">${cli}</div>
+          <span style="font-size:11px;color:var(--gray-400)">${empresas} empresa${empresas!==1?'s':''}</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;text-align:center">
+          <div style="background:rgba(230,57,70,0.08);border-radius:8px;padding:8px 4px">
+            <div style="font-size:20px;font-weight:700;color:var(--red)">${atr}</div>
+            <div style="font-size:10px;color:var(--gray-400)">Atrasadas</div>
+          </div>
+          <div style="background:rgba(244,162,97,0.08);border-radius:8px;padding:8px 4px">
+            <div style="font-size:20px;font-weight:700;color:var(--amber)">${aler}</div>
+            <div style="font-size:10px;color:var(--gray-400)">En alerta</div>
+          </div>
+          <div style="background:rgba(42,157,143,0.08);border-radius:8px;padding:8px 4px">
+            <div style="font-size:20px;font-weight:700;color:var(--green)">${ok}</div>
+            <div style="font-size:10px;color:var(--gray-400)">En plazo</div>
+          </div>
+        </div>
+        <div style="margin-top:10px;font-size:11px;color:var(--gray-400);text-align:right">Ver detalle →</div>
+      </div>`;
+  }).join('');
+}
+
+function irResumenCliente(cliente) {
+  const navEl = [...document.querySelectorAll('.nav-item')].find(el => el.textContent.includes('Resumen por Cliente'));
+  nav('resumen-clientes', navEl);
+  setTimeout(() => renderResumenClientes(cliente), 50);
+}
+
+function renderResumenClientes(clienteFoco = null) {
+  const detalle = document.getElementById('resumen-clientes-detalle');
+  if (!detalle) return;
+
+  // Poblar select de responsables
+  const selResp = document.getElementById('rc-filtro-resp');
+  if (selResp && selResp.options.length <= 1) {
+    RESPONSABLES.forEach(r => {
+      const o = document.createElement('option');
+      o.value = r.nombre; o.textContent = r.nombre;
+      selResp.appendChild(o);
+    });
+  }
+
+  const soloActivas = (document.getElementById('rc-filtro-estado')?.value || 'activas') === 'activas';
+  const filtroResp = document.getElementById('rc-filtro-resp')?.value || '';
+
+  let acts = ACTIVIDADES.filter(a => puedeVerActividad(a));
+  if (soloActivas) acts = acts.filter(a => a.etapa !== 'Terminado');
+  if (filtroResp) acts = acts.filter(a => a.resp === filtroResp);
+
+  const clientes = [...new Set(acts.map(a => a.cliente))].sort();
+  if (!clientes.length) { detalle.innerHTML = '<p style="font-size:13px;color:var(--gray-400)">Sin actividades para mostrar.</p>'; return; }
+
+  detalle.innerHTML = clientes.map(cli => {
+    const actsCli = acts.filter(a => a.cliente === cli);
+    const empresas = [...new Set(actsCli.map(a => a.empresa))].sort();
+    const totalAtr = actsCli.filter(a => dias(a.obj,a.etapa) < 0).length;
+    const colorCli = totalAtr > 0 ? 'var(--red)' : 'var(--navy)';
+    const isOpen = !clienteFoco || clienteFoco === cli;
+
+    return `
+      <div style="margin-bottom:20px;background:#fff;border-radius:14px;box-shadow:var(--sh);overflow:hidden">
+        <!-- Cabecera cliente -->
+        <div style="background:var(--navy);padding:14px 20px;display:flex;align-items:center;justify-content:space-between;cursor:pointer"
+             onclick="toggleClienteBloque('bloque-${cli.replace(/[^a-zA-Z0-9]/g,'_')}')">
+          <div style="display:flex;align-items:center;gap:12px">
+            <span style="font-family:var(--fd);font-size:17px;color:#fff">${cli}</span>
+            <span style="font-size:11px;color:rgba(255,255,255,0.5)">${actsCli.length} actividad${actsCli.length!==1?'es':''} · ${empresas.length} empresa${empresas.length!==1?'s':''}</span>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            ${totalAtr > 0 ? `<span class="badge badge-red">${totalAtr} atrasada${totalAtr!==1?'s':''}</span>` : ''}
+            <span style="color:rgba(255,255,255,0.5);font-size:14px" id="ico-${cli.replace(/[^a-zA-Z0-9]/g,'_')}">${isOpen?'▲':'▼'}</span>
+          </div>
+        </div>
+
+        <!-- Bloque empresas -->
+        <div id="bloque-${cli.replace(/[^a-zA-Z0-9]/g,'_')}" style="display:${isOpen?'block':'none'}">
+          ${empresas.map(emp => {
+            const actsEmp = actsCli.filter(a => a.empresa === emp);
+            const atr = actsEmp.filter(a => dias(a.obj,a.etapa) < 0).length;
+            const aler = actsEmp.filter(a => { const d=dias(a.obj,a.etapa); return d!==null&&d>=0&&d<=ad(); }).length;
+            const term = actsEmp.filter(a => a.etapa === 'Terminado').length;
+            return `
+              <div style="border-bottom:1px solid var(--gray-200);padding:12px 20px">
+                <!-- Cabecera empresa -->
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px">
+                  <div style="font-weight:600;font-size:13px;color:var(--navy)">${emp}</div>
+                  <div style="display:flex;gap:6px;flex-wrap:wrap">
+                    ${atr > 0 ? `<span class="badge badge-red">${atr} atrasada${atr!==1?'s':''}</span>` : ''}
+                    ${aler > 0 ? `<span class="badge badge-amber">${aler} en alerta</span>` : ''}
+                    ${term > 0 ? `<span class="badge" style="background:var(--gray-100);color:var(--gray-400)">${term} terminada${term!==1?'s':''}</span>` : ''}
+                  </div>
+                </div>
+                <!-- Tabla actividades -->
+                <table style="width:100%;font-size:12px;table-layout:fixed">
+                  <colgroup>
+                    <col style="width:28%">
+                    <col style="width:13%">
+                    <col style="width:18%">
+                    <col style="width:13%">
+                    <col style="width:13%">
+                    <col style="width:10%">
+                  </colgroup>
+                  <thead><tr style="color:var(--gray-400);text-align:left;background:var(--gray-100)">
+                    <th style="padding:6px 8px;font-weight:500">Trámite</th>
+                    <th style="padding:6px 8px;font-weight:500">Responsable</th>
+                    <th style="padding:6px 8px;font-weight:500">Etapa</th>
+                    <th style="padding:6px 8px;font-weight:500">Fecha objetivo</th>
+                    <th style="padding:6px 8px;font-weight:500">Estado</th>
+                    <th style="padding:6px 8px;font-weight:500">Días</th>
+                  </tr></thead>
+                  <tbody>
+                    ${actsEmp.sort(prioridadSort).map(a => {
+                      const d = dias(a.obj, a.etapa);
+                      return `<tr style="cursor:pointer;border-top:1px solid var(--gray-100)" onclick="verDetalle(${a.id})">
+                        <td style="padding:6px 8px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${a.tarea}">${a.tarea}</td>
+                        <td style="padding:6px 8px;color:var(--gray-600);white-space:nowrap">${a.resp}</td>
+                        <td style="padding:6px 8px"><span class="badge badge-teal" style="font-size:10px;white-space:normal;line-height:1.3">${a.etapa}</span></td>
+                        <td style="padding:6px 8px;color:var(--gray-600);white-space:nowrap">${fecha(a.obj)}</td>
+                        <td style="padding:6px 8px">${estadoBadge(d,a.etapa)}</td>
+                        <td style="padding:6px 8px">${diasChip(d,a.etapa)}</td>
+                      </tr>`;
+                    }).join('')}
+                  </tbody>
+                </table>
+              </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function toggleClienteBloque(id) {
+  const bloque = document.getElementById(id);
+  const cli = id.replace('bloque-','');
+  const ico = document.getElementById('ico-'+cli);
+  if (!bloque) return;
+  const abierto = bloque.style.display !== 'none';
+  bloque.style.display = abierto ? 'none' : 'block';
+  if (ico) ico.textContent = abierto ? '▼' : '▲';
+}
+
+
 function renderActs() {
   const buscar = document.getElementById('s-buscar').value.toLowerCase();
   const fc = document.getElementById('s-cliente').value;
