@@ -297,7 +297,7 @@ td{padding:9px 12px;color:var(--navy);vertical-align:middle}
         <th style="width:36px">N°</th><th style="width:78px">Cliente</th>
         <th style="width:102px">RUT</th><th>Razón Social</th>
         <th style="width:90px">Régimen</th><th style="width:155px">Rep. Legal</th>
-        <th style="width:155px">Socio</th><th style="width:52px">SII</th>
+        <th style="width:155px">Socio</th>
       </tr></thead>
       <tbody id="sii-tbody"></tbody>
     </table></div>
@@ -358,7 +358,7 @@ td{padding:9px 12px;color:var(--navy);vertical-align:middle}
         <th style="width:110px;text-align:center" id="th-at0"></th>
         <th style="width:110px;text-align:center" id="th-at1"></th>
         <th style="width:110px;text-align:center" id="th-at2"></th>
-        <th style="width:50px">SII</th>
+        
       </tr></thead>
       <tbody id="renta-tbody"></tbody>
     </table></div>
@@ -1060,7 +1060,7 @@ function renderSII(){
       <td>${regBadge(c.regimen)}</td>
       <td style="font-size:11px;color:var(--gray-600)">${repS}</td>
       <td style="font-size:11px;color:var(--gray-600)">${socS}</td>
-      <td><button class="sii-link" style="background:none;border:none;cursor:pointer;font-size:16px;opacity:.7;transition:opacity .15s" onclick="event.stopPropagation();abrirSII('${c.rut}','https://zeusr.sii.cl//AUT2000/InicioAutenticacion/IngresoRutClave.html?https://misiir.sii.cl/cgi_misii/siihome.cgi')" title="Abrir Mi SII (copiará el RUT)">🌐</button></td>`;
+      `;
     tr.addEventListener('click',()=>{siiExp=siiExp===c.rut?null:c.rut;renderSII();});
     tb.appendChild(tr);
     if(isE){
@@ -1131,7 +1131,7 @@ function renderRenta(){
       <td style="text-align:center">${semR(ge('at1'),`event.stopPropagation();abrirObs('${c.rut}','${c.razon}',0)`)}</td>
       <td style="text-align:center">${semR(ge('at2'),`event.stopPropagation();abrirObs('${c.rut}','${c.razon}',1)`)}</td>
       <td style="text-align:center">${semR(ge('at3'),`event.stopPropagation();abrirObs('${c.rut}','${c.razon}',2)`)}</td>
-      <td><button style="background:none;border:none;cursor:pointer;font-size:16px;color:#2952a3;opacity:.7;transition:opacity .15s" onclick="event.stopPropagation();abrirSII('${c.rut}','https://zeusr.sii.cl/AUT2000/InicioAutenticacion/IngresoRutClave.html?https://www4.sii.cl/consultaestadof22ui/')" title="Abrir Estado Renta en SII (copiará el RUT)">🌐</button></td>`;
+      `;
     tr.addEventListener('click',()=>{rentaExp=rentaExp===c.rut?null:c.rut;renderRenta();});
     tb.appendChild(tr);
     if(isE){
@@ -1205,6 +1205,9 @@ function guardarRenta(){
   });
   RENTA[rut]._updated=new Date().toISOString();RENTA[rut]._updatedBy=localStorage.getItem('tz2_usr')||'Sin nombre';
   saveRenta();closeModal('modal-renta');renderRenta();renderDash();toast('✓ Renta guardada','s');
+  ['at1','at2','at3'].forEach(function(atk,i){
+    syncSheet('renta',rut,{RUT:rut,AT:ATS[i],Estado:RENTA[rut][atk].estado,Observacion:RENTA[rut][atk].obs||''});
+  });
 }
 
 // IMPORTAR RENTA
@@ -1686,7 +1689,7 @@ function renderIVA(){
           </table>
         </div>
         <div style="margin-top:10px;display:flex;gap:6px">
-          <button class="btn btn-secondary btn-sm" onclick="abrirSII('${c.rut}','https://zeusr.sii.cl//AUT2000/InicioAutenticacion/IngresoRutClave.html?https://misiir.sii.cl/cgi_misii/siihome.cgi')">🌐 Ver en SII</button>
+          
         </div>
       </div>`;
     wrap.appendChild(card);
@@ -1866,7 +1869,7 @@ function renderPat(){
         ${renderRebajaResumen(c.rut)}
         <div style="display:flex;gap:6px;margin-top:8px">
           <button class="btn btn-secondary btn-sm" onclick="abrirRebaja('${c.rut}','${c.razon}')">✏️ Editar rebajas</button>
-          <button class="btn btn-secondary btn-sm" onclick="abrirSII('${c.rut}','https://zeusr.sii.cl//AUT2000/InicioAutenticacion/IngresoRutClave.html?https://misiir.sii.cl/cgi_misii/siihome.cgi')">🌐 Ver en SII</button>
+          
         </div>
 
       </div>`;
