@@ -869,11 +869,13 @@ td{padding:9px 12px;color:var(--navy);vertical-align:middle}
       </div>
       <div style="margin-bottom:10px">
         <label class="form-label">Representante(s) Legal(es)</label>
-        <textarea id="msii-reps" class="form-input" rows="2" placeholder="Un nombre por línea"></textarea>
+        <textarea id="msii-reps" class="form-input" rows="3" placeholder="RUT | Nombre (una por línea)
+Ej: 12.345.678-9 | Juan Pérez"></textarea>
       </div>
       <div style="margin-bottom:10px">
         <label class="form-label">Socio(s)</label>
-        <textarea id="msii-socios" class="form-input" rows="2" placeholder="Un nombre por línea"></textarea>
+        <textarea id="msii-socios" class="form-input" rows="3" placeholder="RUT | Nombre (una por línea)
+Ej: 76.123.456-7 | Empresa SA"></textarea>
       </div>
       <div style="margin-bottom:10px">
         <label class="form-label">Domicilio Principal</label>
@@ -2238,8 +2240,8 @@ function abrirEditSII(rut){
   document.getElementById('msii-rut').textContent = rut;
   document.getElementById('msii-razon').value = c.razon||'';
   document.getElementById('msii-regimen').value = c.regimen||'';
-  document.getElementById('msii-reps').value = (c.reps||[]).map(function(r){return r.nombre;}).join('\n');
-  document.getElementById('msii-socios').value = (c.socios||[]).map(function(s){return s.nombre;}).join('\n');
+  document.getElementById('msii-reps').value = (c.reps||[]).map(function(r){return (r.rut?r.rut+' | ':'')+r.nombre;}).join('\n');
+  document.getElementById('msii-socios').value = (c.socios||[]).map(function(s){return (s.rut?s.rut+' | ':'')+s.nombre;}).join('\n');
   document.getElementById('msii-domicilio').value = c.domicilio||'';
   document.getElementById('msii-sucursal').value = c.sucursal||'';
   document.getElementById('msii-rut').dataset.rut = rut;
@@ -2265,7 +2267,9 @@ function guardarEditSII(){
     'Cliente': c.cliente,
     'Régimen': c.regimen,
     'Representantes': c.reps.map(function(r){return r.nombre;}).join(', '),
+    'RUT_Representantes': c.reps.map(function(r){return r.rut||'';}).join(', '),
     'Socios': c.socios.map(function(s){return s.nombre;}).join(', '),
+    'RUT_Socios': c.socios.map(function(s){return s.rut||'';}).join(', '),
     'Domicilio': c.domicilio,
     'Sucursal': c.sucursal
   });
