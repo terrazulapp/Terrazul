@@ -1005,8 +1005,8 @@ function regBadge(r){
   return `<span class="badge badge-gray">${r}</span>`;
 }
 function semR(v,onclick=''){
-  const cfg={3:['sem-ok','✓'],2:['sem-obs','!'],1:['sem-inc','✗'],0:['sem-na','—'],'-1':['sem-nd','?']};
-  const [cls,ico]=cfg[v]||cfg['-1'];
+  const cfg={'3':['sem-ok','✓'],'2':['sem-obs','!'],'1':['sem-inc','✗'],'0':['sem-na','—'],'-1':['sem-nd','?']};
+  const [cls,ico]=cfg[String(v)]||cfg['-1'];
   return `<span class="sem ${cls}" ${onclick?`onclick="${onclick}"`:''}>${ico}</span>`;
 }
 function siiUrl(rut){return 'https://zeusr.sii.cl//AUT2000/InicioAutenticacion/IngresoRutClave.html?https://misiir.sii.cl/cgi_misii/siihome.cgi';}
@@ -2166,12 +2166,14 @@ function apiPost(data){
 function syncSheet(modulo,rut,data){
   var sheets={renta:'Renta',dj:'DJ',iva:'IVA',patentes:'Patentes',sii:'Empresas'};
   var sheet=sheets[modulo];
-  if(!sheet) return;
-  var usuario=localStorage.getItem('terrazul_usuario')||'';
+  if(!sheet){ console.warn('syncSheet: módulo no reconocido:',modulo); return; }
+  var usuario=localStorage.getItem('tz2_usr')||localStorage.getItem('terrazul_usuario')||'';
+  console.log('syncSheet →',sheet,rut,data);
   apiPost({action:'upsert',sheet:sheet,keyCol:'RUT',keyVal:rut,data:data,usuario:usuario})
     .then(function(res){
-      if(res.ok) toast('☁️ Guardado en Sheet','s');
-      else toast('⚠️ Error Sheet: '+(res.error||'desconocido'),'e');
+      console.log('syncSheet response:',res);
+      if(res && res.ok) toast('☁️ Guardado en Sheet','s');
+      else toast('⚠️ Error Sheet: '+((res&&res.error)||'desconocido'),'e');
     })
     .catch(function(e){ toast('⚠️ Sin conexión al Sheet','e'); console.error('syncSheet error:',e); });
   apiPost({action:'log',usuario:usuario,modulo:modulo,rut:rut,accion:'Actualización',detalle:JSON.stringify(data).substring(0,200)}).catch(function(){});
