@@ -2266,6 +2266,12 @@ function guardarEditSII(){
   toast('✓ Información actualizada', 's');
 }
 
+
+function renderConfig(){
+  var usr = localStorage.getItem('tz2_usr') || '';
+  var el = document.getElementById('cfg-usr');
+  if(el) el.value = usr;
+}
 // INIT
 renderDash();renderConfig();initDJAtPills();
 document.getElementById('at-label').textContent=ATS.join(' · ');
