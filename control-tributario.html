@@ -1253,8 +1253,10 @@ function guardarRenta(){
   });
   RENTA[rut]._updated=new Date().toISOString();RENTA[rut]._updatedBy=localStorage.getItem('tz2_usr')||'Sin nombre';
   saveRenta();closeModal('modal-renta');renderRenta();renderDash();toast('✓ Renta guardada','s');
+  var estadoLabel={'3':'Aceptada','2':'Con observaciones','1':'Inconsistencias','0':'No aplica','-1':'Sin datos'};
   ['at1','at2','at3'].forEach(function(atk,i){
-    syncSheet('renta',rut,{RUT:rut,AT:ATS[i],Estado:RENTA[rut][atk].estado,Observacion:RENTA[rut][atk].obs||''});
+    var est=RENTA[rut][atk].estado;
+    syncSheet('renta',rut+'-'+ATS[i],{RUT:rut,AT:ATS[i],Estado:estadoLabel[String(est)]||String(est),EstadoCod:est,Observacion:RENTA[rut][atk].obs||''});
   });
 }
 
@@ -1477,6 +1479,8 @@ function guardarEditDJ(){
   DJ_DATA[rut]._updated=new Date().toISOString();
   saveDJ(); closeModal('modal-dj-edit'); renderDJ(); renderDash();
   toast('✓ DJ guardada','s');
+  const djLabels={'1':'Aceptada','2':'Con observaciones','0':'Pendiente','-1':'No aplica'};
+  syncSheet('dj',rut+'-'+atk+'-'+dj,{RUT:rut,AT:atk,Formulario:dj,Estado:djLabels[String(est)]||String(est),EstadoCod:est,Observacion:obs});
 }
 
 // ── Modal configurar DJs asignadas ───────────────────────────────────────
@@ -1503,7 +1507,8 @@ function guardarCfgDJ(){
   const nuevas=[...checks].map(c=>c.value);
   if(!DJ_DATA[cfgRut]) DJ_DATA[cfgRut]={at1:{},at2:{},at3:{},obs_general:'',djs_asignadas:[]};
   DJ_DATA[cfgRut].djs_asignadas=nuevas;
-  saveDJ(); closeModal('modal-dj-cfg'); renderDJ();
+  saveDJ();
+  // sync con Sheet se hace al guardar DJ individual closeModal('modal-dj-cfg'); renderDJ();
   toast(`✓ ${nuevas.length} DJ asignadas`,'s');
 }
 
@@ -1780,6 +1785,8 @@ function guardarIVA(){
   else IVA_DATA[rut][anio][mes]={estado:est,obs};
   saveIVA(); closeModal('modal-iva-edit'); renderIVA();
   toast('✓ F29 guardado','s');
+  const ivaLabels={'1':'Aceptada','2':'Con impugnación','0':'Pendiente','-1':'No aplica','-2':'Sin datos'};
+  syncSheet('iva',rut+'-'+anio+'-'+mes,{RUT:rut,Anio:anio,Mes:IVA_MESES[mes],Estado:ivaLabels[String(est)]||String(est),EstadoCod:est,Observacion:obs});
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1979,6 +1986,7 @@ function guardarPatente(){
   else PAT_DATA[rut].patentes.push(p);
   savePat(); closeModal('modal-pat-edit'); renderPat();
   toast('✓ Patente guardada','s');
+  syncSheet('patentes',rut+'-'+(p.tipo||'').replace(/ /g,'-'),{RUT:rut,Tipo:p.tipo,Comuna:p.comuna,Rol:p.rol,Estado:p.estado,Observacion:p.obs||''});
 }
 
 // ── Trabajadores ──────────────────────────────────────────────────────────
