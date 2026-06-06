@@ -2164,11 +2164,17 @@ function apiPost(data){
   }).then(function(r){return r.json();});
 }
 function syncSheet(modulo,rut,data){
-  var sheets={renta:'Renta',dj:'DJ',iva:'IVA',patentes:'Patentes'};
+  var sheets={renta:'Renta',dj:'DJ',iva:'IVA',patentes:'Patentes',sii:'Empresas'};
   var sheet=sheets[modulo];
   if(!sheet) return;
-  apiPost({action:'upsert',sheet:sheet,keyCol:'RUT',keyVal:rut,data:data,usuario:localStorage.getItem('terrazul_usuario')||''}).catch(function(){});
-  apiPost({action:'log',usuario:localStorage.getItem('terrazul_usuario')||'',modulo:modulo,rut:rut,accion:'Actualización',detalle:JSON.stringify(data).substring(0,200)}).catch(function(){});
+  var usuario=localStorage.getItem('terrazul_usuario')||'';
+  apiPost({action:'upsert',sheet:sheet,keyCol:'RUT',keyVal:rut,data:data,usuario:usuario})
+    .then(function(res){
+      if(res.ok) toast('☁️ Guardado en Sheet','s');
+      else toast('⚠️ Error Sheet: '+(res.error||'desconocido'),'e');
+    })
+    .catch(function(e){ toast('⚠️ Sin conexión al Sheet','e'); console.error('syncSheet error:',e); });
+  apiPost({action:'log',usuario:usuario,modulo:modulo,rut:rut,accion:'Actualización',detalle:JSON.stringify(data).substring(0,200)}).catch(function(){});
 }
 function cargarClavesSII(claveAcceso){
   apiGet({action:'claves',usuario:localStorage.getItem('terrazul_usuario')||'',clave_acceso:claveAcceso})
