@@ -135,7 +135,24 @@ td{padding:9px 12px;color:var(--navy);vertical-align:middle}
 .login-title{font-family:var(--fd);font-size:22px;color:var(--navy);margin-bottom:6px}
 .login-sub{font-size:12px;color:var(--gray-400);margin-bottom:24px}
 .login-error{font-size:12px;color:var(--red);margin-top:8px;display:none}
-::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:var(--gray-200);border-radius:3px}
+/* ===== PRESUPUESTO ===== */
+.ppto-tab-btn{display:inline-flex;align-items:center;gap:5px;padding:6px 13px;border-radius:var(--rs);font-size:12px;font-weight:500;cursor:pointer;border:1.5px solid var(--gray-200);background:#fff;color:var(--gray-600);transition:all .15s;white-space:nowrap}
+.ppto-tab-btn:hover{border-color:#2A9D8F;color:#2A9D8F}
+.ppto-tab-btn.active{background:#2A9D8F;border-color:#2A9D8F;color:#fff}
+.ppto-section-hdr td{background:var(--navy);color:rgba(255,255,255,.85);font-weight:600;font-size:11px;letter-spacing:.5px;padding:8px 12px}
+.ppto-subtotal td{background:var(--gray-100);font-weight:700;font-size:11px;border-top:2px solid var(--gray-200)}
+.ppto-result-pos td{background:#d4f0e0;font-weight:700;color:var(--green)}
+.ppto-result-neg td{background:#f9d6d3;font-weight:700;color:var(--red)}
+.ppto-result-acum td{background:#e8e8f5;font-weight:700;color:var(--navy)}
+.ppto-margen td{background:var(--amber-light);font-size:11px;color:var(--amber)}
+.ppto-input{width:100%;padding:4px 6px;font-size:11px;border-radius:4px;border:1px solid transparent;font-family:var(--fb);color:var(--navy);background:transparent;text-align:right}
+.ppto-input:focus{border-color:#2A9D8F;background:#fff;outline:none;box-shadow:0 0 0 2px rgba(42,157,143,.15)}
+.ppto-input:hover{background:var(--gray-100)}
+.ppto-input.editable{color:#1a5fa8;font-weight:500}
+.ppto-num{text-align:right;font-size:11px;font-weight:500;padding:7px 10px;white-space:nowrap}
+.ppto-total{text-align:right;font-size:11px;font-weight:700;padding:7px 10px;white-space:nowrap;background:rgba(12,12,89,.04)}
+.ppto-cat-badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;background:var(--gray-200);color:var(--gray-600);white-space:nowrap}
+
 
 .hamburger{display:none;background:none;border:none;cursor:pointer;padding:6px;flex-direction:column;gap:5px;z-index:300}
 .hamburger span{display:block;width:22px;height:2px;background:var(--navy);border-radius:2px}
@@ -201,14 +218,16 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
   </div>
   <nav class="nav">
     <div class="nav-sec">Principal</div>
-    <div class="nav-item active" onclick="nav('dashboard',this)">📊 Panel de Control</div>
-    <div class="nav-item" onclick="nav('facturacion',this)">🧾 Facturación Mensual</div>
-    <div class="nav-item" onclick="nav('correos',this)">📧 Correos</div>
-    <div class="nav-item" onclick="nav('historial',this)">📁 Historial</div>
-    <div class="nav-sec">Configuración</div>
-    <div class="nav-item" onclick="nav('clientes',this)">🏢 Clientes</div>
-    <div class="nav-item" onclick="nav('sociedades',this)">🏗️ Sociedades Operativas</div>
-    <div class="nav-item" onclick="nav('config',this)">⚙️ Configuración</div>
+    <div class="nav-item active" data-section="dashboard" onclick="nav('dashboard',this)">📊 Panel de Control</div>
+    <div class="nav-item" data-section="facturacion" onclick="nav('facturacion',this)">🧾 Facturación Mensual</div>
+    <div class="nav-item" data-section="correos" onclick="nav('correos',this)">📧 Correos</div>
+    <div class="nav-item" data-section="historial" onclick="nav('historial',this)">📁 Historial</div>
+    <div class="nav-sec" data-section="finanzas-sec">Finanzas</div>
+    <div class="nav-item" data-section="presupuesto" onclick="nav('presupuesto',this)">📊 Presupuesto de Caja</div>
+    <div class="nav-sec" data-section="config-sec">Configuración</div>
+    <div class="nav-item" data-section="clientes" onclick="nav('clientes',this)">🏢 Clientes</div>
+    <div class="nav-item" data-section="sociedades" onclick="nav('sociedades',this)">🏗️ Sociedades Operativas</div>
+    <div class="nav-item" data-section="config" onclick="nav('config',this)">⚙️ Configuración</div>
   </nav>
   <div class="sidebar-footer">v1.0 · Terrazul 2026</div>
 </aside>
@@ -275,6 +294,7 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
             </div>
             <div style="display:flex;gap:8px;flex-wrap:wrap">
               <button class="btn btn-secondary btn-sm" onclick="agregarFilaExtra()">＋ Factura adicional</button>
+              <button class="btn btn-secondary btn-sm" onclick="exportarExcelFacturacion()">📥 Excel Resumen</button>
               <button class="btn btn-green btn-sm" onclick="generarExcelEspecial()">📊 Excel Holdco/Tralka/Antu</button>
               <button class="btn btn-gold btn-sm" onclick="irACorreos()">📧 Preparar Correos</button>
             </div>
@@ -417,14 +437,35 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
         <button class="btn btn-primary" onclick="guardarConfig()">💾 Guardar Configuración</button>
       </div>
       <div class="card" style="margin-bottom:16px">
-        <div class="stitle">🔐 Acceso a la App</div>
-        <div class="fg" style="margin-bottom:12px">
-          <div><label class="fl">Usuario</label><input type="text" id="cfg-usuario" placeholder="nancy"></div>
-          <div></div>
-          <div><label class="fl">Nueva contraseña</label><input type="password" id="cfg-pwd-new" placeholder="••••••••"></div>
-          <div><label class="fl">Confirmar contraseña</label><input type="password" id="cfg-pwd-confirm" placeholder="••••••••"></div>
+        <div class="stitle">🔐 Usuarios</div>
+        <div id="cfg-usuarios-lista" style="margin-bottom:14px"></div>
+        <div style="border-top:1px solid var(--gray-200);padding-top:14px">
+          <div style="font-size:12px;font-weight:600;color:var(--gray-600);margin-bottom:10px">➕ Nuevo usuario / Editar existente</div>
+          <div class="fg" style="margin-bottom:10px">
+            <div><label class="fl">Usuario</label><input type="text" id="cfg-usuario" placeholder="nombre"></div>
+            <div>
+              <label class="fl">Rol</label>
+              <select id="cfg-rol" onchange="pptoRolChange()">
+                <option value="user">Usuario normal</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+            <div><label class="fl">Contraseña</label><input type="password" id="cfg-pwd-new" placeholder="••••••••"></div>
+            <div><label class="fl">Confirmar</label><input type="password" id="cfg-pwd-confirm" placeholder="••••••••"></div>
+          </div>
+          <div id="cfg-secciones-wrap" style="margin-bottom:12px;padding:12px;background:var(--gray-100);border-radius:var(--rs)">
+            <div style="font-size:11px;font-weight:600;color:var(--gray-600);margin-bottom:8px">Secciones habilitadas</div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px">
+              <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer"><input type="checkbox" id="sec-facturacion" checked style="width:auto"> 🧾 Facturación</label>
+              <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer"><input type="checkbox" id="sec-correos" checked style="width:auto"> 📧 Correos</label>
+              <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer"><input type="checkbox" id="sec-historial" checked style="width:auto"> 📁 Historial</label>
+              <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer"><input type="checkbox" id="sec-presupuesto" style="width:auto"> 📊 Presupuesto</label>
+              <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer"><input type="checkbox" id="sec-clientes" style="width:auto"> 🏢 Clientes</label>
+              <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer"><input type="checkbox" id="sec-sociedades" style="width:auto"> 🏗️ Sociedades</label>
+            </div>
+          </div>
+          <button class="btn btn-primary" onclick="guardarUsuario()">💾 Guardar Usuario</button>
         </div>
-        <button class="btn btn-primary" onclick="cambiarCredenciales()">🔐 Guardar Credenciales</button>
       </div>
       <div class="card">
         <div class="stitle">⏰ Envío Programado</div>
@@ -436,7 +477,124 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
       </div>
     </div>
   </div>
-</main>
+  <!-- PRESUPUESTO DE CAJA -->
+  <div class="page" id="page-presupuesto">
+
+    <!-- Topbar del módulo -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <select id="ppto-anio-sel" style="width:100px;font-weight:600" onchange="pptoCargarAnio()"></select>
+        <div id="ppto-tabs" style="display:flex;gap:4px"></div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-secondary btn-sm" onclick="pptoNuevoAnio()">＋ Nuevo año</button>
+        <button class="btn btn-secondary btn-sm" onclick="exportarExcelPresupuesto()">📥 Exportar Excel</button>
+        <button class="btn btn-primary btn-sm" onclick="pptoGuardar()">💾 Guardar</button>
+      </div>
+    </div>
+
+    <!-- Tab: Resumen -->
+    <div id="ppto-tab-resumen" class="ppto-tab-panel">
+      <div class="card" style="padding:0;overflow:hidden">
+        <div style="background:var(--navy);padding:14px 18px;display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <div style="font-family:var(--fd);font-size:15px;color:#fff">Presupuesto de Caja</div>
+            <div style="font-size:11px;color:rgba(255,255,255,0.5);margin-top:2px">Control mensual · <span id="ppto-titulo-anio"></span></div>
+          </div>
+          <span class="uf-badge" id="ppto-uf-actual-badge" style="display:none"></span>
+        </div>
+        <div style="overflow-x:auto">
+          <table id="ppto-tabla-resumen" style="min-width:1100px">
+            <thead>
+              <tr>
+                <th style="width:200px;min-width:180px">Concepto</th>
+                <th>Ene</th><th>Feb</th><th>Mar</th><th>Abr</th>
+                <th>May</th><th>Jun</th><th>Jul</th><th>Ago</th>
+                <th>Sep</th><th>Oct</th><th>Nov</th><th>Dic</th>
+                <th style="background:#1a3a8a">Total Año</th>
+              </tr>
+            </thead>
+            <tbody id="ppto-tbody-resumen"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab: Parámetros (UF) -->
+    <div id="ppto-tab-parametros" class="ppto-tab-panel" style="display:none">
+      <div class="card" style="max-width:600px">
+        <div class="stitle">💱 Valor UF Mensual</div>
+        <p style="font-size:12px;color:var(--gray-600);margin-bottom:14px">El valor UF del día 5 de cada mes. Los ingresos se calculan automáticamente con estos valores.</p>
+        <div id="ppto-uf-grid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px"></div>
+        <div style="margin-top:14px;display:flex;gap:8px">
+          <button class="btn btn-secondary btn-sm" onclick="pptoSincUFDesdeFacturacion()">🔄 Importar UF desde Facturación</button>
+          <button class="btn btn-primary btn-sm" onclick="pptoGuardar()">💾 Guardar UF</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab: Ingresos -->
+    <div id="ppto-tab-ingresos" class="ppto-tab-panel" style="display:none">
+      <div class="card" style="padding:0;overflow:hidden">
+        <div style="background:var(--navy);padding:14px 18px">
+          <div style="font-family:var(--fd);font-size:14px;color:#fff">Presupuesto de Ingresos</div>
+          <div style="font-size:11px;color:rgba(255,255,255,0.5);margin-top:2px">Ingresos en UF × valor UF del mes → CLP</div>
+        </div>
+        <div style="overflow-x:auto">
+          <table id="ppto-tabla-ingresos" style="min-width:1100px">
+            <thead>
+              <tr>
+                <th style="width:200px">Cliente / Servicio</th>
+                <th style="width:90px">Tarifa UF</th>
+                <th>Ene</th><th>Feb</th><th>Mar</th><th>Abr</th>
+                <th>May</th><th>Jun</th><th>Jul</th><th>Ago</th>
+                <th>Sep</th><th>Oct</th><th>Nov</th><th>Dic</th>
+                <th>Total Año</th>
+                <th style="width:40px"></th>
+              </tr>
+            </thead>
+            <tbody id="ppto-tbody-ingresos"></tbody>
+          </table>
+        </div>
+        <div style="padding:12px 16px;border-top:1px solid var(--gray-200);display:flex;gap:8px">
+          <button class="btn btn-secondary btn-sm" onclick="pptoAgregarIngreso()">＋ Agregar línea</button>
+          <button class="btn btn-secondary btn-sm" onclick="pptoImportarClientesActivos()">📥 Importar clientes activos</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab: Gastos -->
+    <div id="ppto-tab-gastos" class="ppto-tab-panel" style="display:none">
+      <div class="card" style="padding:0;overflow:hidden">
+        <div style="background:var(--navy);padding:14px 18px">
+          <div style="font-family:var(--fd);font-size:14px;color:#fff">Presupuesto de Gastos</div>
+          <div style="font-size:11px;color:rgba(255,255,255,0.5);margin-top:2px">Todos los valores en CLP</div>
+        </div>
+        <div style="overflow-x:auto">
+          <table id="ppto-tabla-gastos" style="min-width:1100px">
+            <thead>
+              <tr>
+                <th style="width:130px">Categoría</th>
+                <th style="width:200px">Concepto / Detalle</th>
+                <th>Ene</th><th>Feb</th><th>Mar</th><th>Abr</th>
+                <th>May</th><th>Jun</th><th>Jul</th><th>Ago</th>
+                <th>Sep</th><th>Oct</th><th>Nov</th><th>Dic</th>
+                <th>Total Año</th>
+                <th style="width:40px"></th>
+              </tr>
+            </thead>
+            <tbody id="ppto-tbody-gastos"></tbody>
+          </table>
+        </div>
+        <div style="padding:12px 16px;border-top:1px solid var(--gray-200)">
+          <button class="btn btn-secondary btn-sm" onclick="pptoAgregarGasto()">＋ Agregar concepto</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+
 
 <!-- MODAL NUEVO MES -->
 <div class="overlay" id="modal-mes">
@@ -504,6 +662,43 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
       <div style="margin-top:10px">
         <input type="checkbox" id="cli-activo" checked style="width:auto">
         <label for="cli-activo" style="font-size:13px;cursor:pointer;margin-left:6px">Cliente activo (aparece en facturación mensual)</label>
+      </div>
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--gray-200)">
+        <div class="stitle" style="font-size:13px;margin-bottom:8px">📅 Período en Presupuesto</div>
+        <div style="font-size:11px;color:var(--gray-400);margin-bottom:10px">Define en qué meses aplica este cliente al calcular ingresos. Dejar "hasta" vacío = indefinido.</div>
+        <div class="fg3">
+          <div>
+            <label class="fl">Desde — Mes</label>
+            <select id="cli-desde-mes">
+              <option value="">— Sin límite</option>
+              <option value="1">Enero</option><option value="2">Febrero</option><option value="3">Marzo</option>
+              <option value="4">Abril</option><option value="5">Mayo</option><option value="6">Junio</option>
+              <option value="7">Julio</option><option value="8">Agosto</option><option value="9">Septiembre</option>
+              <option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option>
+            </select>
+          </div>
+          <div>
+            <label class="fl">Desde — Año</label>
+            <input type="number" id="cli-desde-anio" placeholder="2026" style="width:90px">
+          </div>
+          <div></div>
+          <div>
+            <label class="fl">Hasta — Mes</label>
+            <select id="cli-hasta-mes">
+              <option value="">— Indefinido</option>
+              <option value="1">Enero</option><option value="2">Febrero</option><option value="3">Marzo</option>
+              <option value="4">Abril</option><option value="5">Mayo</option><option value="6">Junio</option>
+              <option value="7">Julio</option><option value="8">Agosto</option><option value="9">Septiembre</option>
+              <option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option>
+            </select>
+          </div>
+          <div>
+            <label class="fl">Hasta — Año</label>
+            <input type="number" id="cli-hasta-anio" placeholder="2026" style="width:90px">
+          </div>
+          <div></div>
+        </div>
+      </div>
       </div>
     </div>
     <div class="mf">
@@ -656,6 +851,8 @@ async function checkLogin(){
     sessionStorage.setItem('trzl_user_active', user);
     document.getElementById('topbar-user').textContent = user;
     await cargarDesdeSheets();
+    await cargarUsuariosSheet();
+    aplicarPermisos();
     renderDashboard();
 
   } finally {
@@ -690,7 +887,8 @@ const CLIENTES_BASE = [
   { clave:'RRG', rut:'77.826.634-2', razon:'RRG Chile Consulting SpA', empresas:12, tarifa:5.5833, activo:true, grupo:false,
     contacto:'Martha y Guillermo', email1:'gberrios@rrgcm.com', email2:'mmontanez@rrgcm.com', cc:'cjeria@trzl.cl' },
   { clave:'Aediles', rut:'77.438.078-7', razon:'Aediles Talinay Chile SpA', empresas:1, tarifa:17, activo:true, grupo:false,
-    contacto:'Vanessa', email1:'vanessa.thiers@aedilestalinay.com', email2:'', cc:'claudia.baeza@aedilestalinay.com, cjeria@trzl.cl' },
+    contacto:'Vanessa', email1:'vanessa.thiers@aedilestalinay.com', email2:'', cc:'claudia.baeza@aedilestalinay.com, cjeria@trzl.cl',
+    desdeMes:1, desdeAnio:2026, hastaMes:6, hastaAnio:2026 },
   { clave:'Holdco', rut:'77.498.289-2', razon:'PMGD Holdco SpA', empresas:4, tarifa:2, activo:true, grupo:true,
     contacto:'Jimena', email1:'jimena.alvarado@aedilestalinay.com', email2:'', cc:'sandra.vera@aedilestalinay.com, Daniela.Cubillos@aedilestalinay.com, paula.donoso@aedilestalinay.com, cjeria@trzl.cl' },
   { clave:'Tralka', rut:'76.780.504-7', razon:'Tralka SpA', empresas:39, tarifa:2, activo:true, grupo:true,
@@ -864,14 +1062,23 @@ async function cargarDesdeSheets(){
       });
     }
 
-    // Parsear Acceso — solo actualizar si el usuario actual está en el Sheet
+    // Parsear Acceso — actualizar cache _usuarios y validar sesión activa
     if(data.Acceso && data.Acceso.length > 1){
       const [hdr, ...rows] = data.Acceso;
+      // Detectar si el Sheet tiene columna de rol (formato nuevo) o no (formato antiguo)
+      const tieneRol = hdr && (String(hdr[2]||'').toLowerCase()==='rol' || rows.some(r=>r[2]&&r[2]!==''));
+      _usuarios = rows.filter(r=>r[0]).map((r, idx)=>({
+        usuario:   String(r[0]).toLowerCase(),
+        hash:      r[1]||'',
+        // Sin columna rol → primer usuario es admin, resto también admin por defecto (migración segura)
+        rol:       tieneRol ? (r[2]||'user') : 'admin',
+        secciones: tieneRol && r[3] ? String(r[3]).split(',').filter(Boolean) : SECCIONES_ADMIN
+      }));
       const userActivo = sessionStorage.getItem('trzl_user_active')||'';
-      const fila = rows.find(r => String(r[0]).toLowerCase() === userActivo.toLowerCase());
+      const fila = _usuarios.find(u=>u.usuario===userActivo.toLowerCase());
       if(fila){
-        localStorage.setItem('trzl_user', fila[0]);
-        localStorage.setItem('trzl_pwd_hash', fila[1]);
+        localStorage.setItem('trzl_user', fila.usuario);
+        localStorage.setItem('trzl_pwd_hash', fila.hash);
       }
     }
 
@@ -933,7 +1140,7 @@ function nav(p, el){
   document.getElementById('page-'+p).classList.add('active');
   if(el) el.classList.add('active');
   paginaActual = p;
-  const titles = {dashboard:'Panel de Control',facturacion:'Facturación Mensual',correos:'Correos',historial:'Historial',clientes:'Clientes',config:'Configuración'};
+  const titles = {dashboard:'Panel de Control',facturacion:'Facturación Mensual',correos:'Correos',historial:'Historial',clientes:'Clientes',config:'Configuración',presupuesto:'Presupuesto de Caja'};
   document.getElementById('page-title').textContent = titles[p]||p;
   if(p==='dashboard') renderDashboard();
   if(p==='facturacion') renderFacturacion();
@@ -942,6 +1149,16 @@ function nav(p, el){
   if(p==='clientes') renderClientes();
   if(p==='sociedades'){ initSociedades(); renderSociedades(); }
   if(p==='config') renderConfig();
+  if(p==='presupuesto') pptoInitUI();
+  // Verificar que el usuario tiene acceso a esta sección
+  const userActivo = (sessionStorage.getItem('trzl_user_active')||'').toLowerCase();
+  const u = _usuarios.find(x=>x.usuario===userActivo);
+  const esAdmin = !u || u.rol==='admin';
+  if(!esAdmin && !((u.secciones||SECCIONES_DEFAULT_USER).includes(p)) && p!=='dashboard'){
+    toast('No tienes acceso a esta sección','e');
+    navTo('dashboard');
+    return;
+  }
 }
 
 function toggleSidebar(){
@@ -2053,6 +2270,11 @@ function abrirModalCliente(i){
   document.getElementById('cli-grupo').checked = c ? (c.grupo||false) : false;
   document.getElementById('cli-activo').checked = c ? (c.activo !== false) : true;
   document.getElementById('cli-grupo-info').style.display = (c && c.grupo) ? 'block' : 'none';
+  // Período presupuesto
+  document.getElementById('cli-desde-mes').value  = c&&c.desdeMes  ? c.desdeMes  : '';
+  document.getElementById('cli-desde-anio').value = c&&c.desdeAnio ? c.desdeAnio : '';
+  document.getElementById('cli-hasta-mes').value  = c&&c.hastaMes  ? c.hastaMes  : '';
+  document.getElementById('cli-hasta-anio').value = c&&c.hastaAnio ? c.hastaAnio : '';
   document.getElementById('modal-cliente').dataset.editIdx = esEdicion ? String(i) : '';
   abrirModal('modal-cliente');
 }
@@ -2085,6 +2307,10 @@ async function guardarCliente(){
     cc: document.getElementById('cli-cc').value.trim(),
     grupo: document.getElementById('cli-grupo').checked,
     activo: document.getElementById('cli-activo').checked,
+    desdeMes:  parseInt(document.getElementById('cli-desde-mes').value)||null,
+    desdeAnio: parseInt(document.getElementById('cli-desde-anio').value)||null,
+    hastaMes:  parseInt(document.getElementById('cli-hasta-mes').value)||null,
+    hastaAnio: parseInt(document.getElementById('cli-hasta-anio').value)||null,
   };
   if(!c.clave||!c.razon){ toast('Clave y Razón Social son obligatorios','e'); return; }
   if(esEdicion && idx >= 0 && idx < DB.clientes.length){
@@ -2112,7 +2338,8 @@ function renderConfig(){
   document.getElementById('cfg-dia').value = cfg.dia||5;
   document.getElementById('cfg-hora').value = cfg.hora||'08:30';
   document.getElementById('cfg-clave').value = cfg.claveFirma||'';
-  document.getElementById('cfg-usuario').value = localStorage.getItem('trzl_user')||DEFAULT_USER;
+  document.getElementById('cfg-usuario').value = '';
+  renderUsuariosList();
 }
 
 async function guardarConfig(){
@@ -2223,50 +2450,212 @@ function formatUFSII(uf){
   return Number(uf).toFixed(2).replace(',','.');
 }
 
-async function cambiarCredenciales(){
+// ===== GESTIÓN DE USUARIOS =====
+// Estructura: { usuario, hash, rol: 'admin'|'user', secciones: ['facturacion','correos',...] }
+// El admin siempre tiene acceso a todo. Las secciones solo aplican a rol 'user'.
+// La sección 'config' es SIEMPRE exclusiva del admin — nunca aparece en secciones de usuario normal.
+
+const SECCIONES_ADMIN = ['dashboard','facturacion','correos','historial','presupuesto','clientes','sociedades','config'];
+const SECCIONES_TODAS = ['facturacion','correos','historial','presupuesto','clientes','sociedades'];
+const SECCIONES_DEFAULT_USER = ['facturacion','correos','historial'];
+
+let _usuarios = []; // cache local
+
+async function cargarUsuariosSheet(){
+  try {
+    const data = await apiGet('Acceso');
+    if(data && data.length > 1){
+      const [hdr, ...rows] = data;
+      const tieneRol = hdr && (String(hdr[2]||'').toLowerCase()==='rol' || rows.some(r=>r[2]&&r[2]!==''));
+      _usuarios = rows.filter(r=>r[0]).map(r=>({
+        usuario:   String(r[0]).toLowerCase(),
+        hash:      r[1]||'',
+        rol:       tieneRol ? (r[2]||'user') : 'admin',
+        secciones: tieneRol && r[3] ? String(r[3]).split(',').filter(Boolean) : SECCIONES_ADMIN
+      }));
+    }
+  } catch(e){ console.warn('cargarUsuariosSheet:', e); }
+}
+
+function pptoRolChange(){
+  const rol = document.getElementById('cfg-rol').value;
+  document.getElementById('cfg-secciones-wrap').style.display = rol==='admin' ? 'none' : 'block';
+}
+
+function renderUsuariosList(){
+  const el = document.getElementById('cfg-usuarios-lista');
+  if(!el) return;
+  const userActivo = (sessionStorage.getItem('trzl_user_active')||'').toLowerCase();
+  if(!_usuarios.length){
+    el.innerHTML = '<p style="font-size:12px;color:var(--gray-400)">⏳ Cargando...</p>';
+    cargarUsuariosSheet().then(()=>renderUsuariosList());
+    return;
+  }
+  el.innerHTML = `
+    <table style="width:100%;font-size:12px;border-collapse:collapse">
+      <thead><tr style="background:var(--gray-100)">
+        <th style="text-align:left;padding:7px 10px;font-size:10px;font-weight:600;text-transform:uppercase;color:var(--gray-600)">Usuario</th>
+        <th style="text-align:left;padding:7px 10px;font-size:10px;font-weight:600;text-transform:uppercase;color:var(--gray-600)">Rol</th>
+        <th style="text-align:left;padding:7px 10px;font-size:10px;font-weight:600;text-transform:uppercase;color:var(--gray-600)">Secciones</th>
+        <th style="width:120px"></th>
+      </tr></thead>
+      <tbody>
+        ${_usuarios.map(u=>`
+          <tr style="border-bottom:1px solid var(--gray-200)">
+            <td style="padding:8px 10px;font-weight:${u.usuario===userActivo?'600':'400'}">
+              ${u.usuario}
+              ${u.usuario===userActivo?'<span class="badge badge-teal" style="margin-left:6px">Tú</span>':''}
+            </td>
+            <td style="padding:8px 10px">
+              ${u.rol==='admin'
+                ? '<span class="badge badge-navy">👑 Admin</span>'
+                : '<span class="badge badge-gray">Usuario</span>'}
+            </td>
+            <td style="padding:8px 10px;font-size:11px;color:var(--gray-600)">
+              ${u.rol==='admin' ? 'Acceso total' : (u.secciones||[]).join(', ')||'—'}
+            </td>
+            <td style="padding:8px 10px;text-align:right;display:flex;gap:5px;justify-content:flex-end">
+              <button class="btn btn-secondary btn-sm" onclick="editarUsuarioForm('${u.usuario}')" title="Editar">✏️ Editar</button>
+              ${u.usuario!==userActivo
+                ? `<button class="ib del" onclick="eliminarUsuario('${u.usuario}')" title="Eliminar">🗑</button>`
+                : ''}
+            </td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+function editarUsuarioForm(usuario){
+  const u = _usuarios.find(x=>x.usuario===usuario);
+  if(!u) return;
+  document.getElementById('cfg-usuario').value = u.usuario;
+  document.getElementById('cfg-rol').value = u.rol||'user';
+  pptoRolChange();
+  // Marcar secciones
+  SECCIONES_TODAS.forEach(s=>{
+    const el = document.getElementById('sec-'+s);
+    if(el) el.checked = u.rol==='admin' || (u.secciones||[]).includes(s);
+  });
+  document.getElementById('cfg-pwd-new').value = '';
+  document.getElementById('cfg-pwd-confirm').value = '';
+  document.getElementById('cfg-usuario').focus();
+}
+
+async function guardarUsuario(){
   const nuevoUser = document.getElementById('cfg-usuario').value.trim().toLowerCase();
   const np = document.getElementById('cfg-pwd-new').value;
   const nc = document.getElementById('cfg-pwd-confirm').value;
+  const rol = document.getElementById('cfg-rol').value;
 
-  if(!nuevoUser){ toast('El usuario no puede estar vacío','e'); return; }
-  if(np || nc){
-    if(!np){ toast('Ingresa la nueva contraseña','e'); return; }
-    if(np!==nc){ toast('Las contraseñas no coinciden','e'); return; }
-    if(np.length<4){ toast('Mínimo 4 caracteres','e'); return; }
+  if(!nuevoUser){ toast('Ingresa un nombre de usuario','e'); return; }
+  if(np || !_usuarios.find(u=>u.usuario===nuevoUser)){
+    if(!np){ toast('Ingresa una contraseña','e'); return; }
+    if(np !== nc){ toast('Las contraseñas no coinciden','e'); return; }
+    if(np.length < 4){ toast('Mínimo 4 caracteres','e'); return; }
+  }
 
+  // Secciones habilitadas (solo para usuarios normales)
+  const secciones = rol==='admin' ? SECCIONES_ADMIN :
+    SECCIONES_TODAS.filter(s=>{ const el=document.getElementById('sec-'+s); return el&&el.checked; });
+
+  const existe = _usuarios.find(u=>u.usuario===nuevoUser);
+  const esNuevo = !existe;
+
+  if(np){
     const h = await hashStr(np);
-
-    // Guardar en Sheet PRIMERO (fuente de verdad)
-    try {
-      await apiPost({ action:'write', sheet:'Acceso', data:[['usuario','hash'],[nuevoUser, h]] });
-      // Solo si el Sheet OK, actualizar localStorage
-      localStorage.setItem('trzl_user', nuevoUser);
-      localStorage.setItem('trzl_pwd_hash', h);
-      sessionStorage.setItem('trzl_user_active', nuevoUser);
-      document.getElementById('topbar-user').textContent = nuevoUser;
-      toast('✅ Credenciales actualizadas correctamente','s');
-      document.getElementById('cfg-pwd-new').value='';
-      document.getElementById('cfg-pwd-confirm').value='';
-    } catch(e){
-      toast('❌ Error al guardar en Sheet: ' + e.message,'e');
-    }
+    if(existe){ existe.hash=h; existe.rol=rol; existe.secciones=secciones; }
+    else { _usuarios.push({ usuario:nuevoUser, hash:h, rol, secciones }); }
   } else {
-    // Solo cambiar usuario
-    try {
-      const hashActual = localStorage.getItem('trzl_pwd_hash') || DEFAULT_PWD_HASH;
-      await apiPost({ action:'write', sheet:'Acceso', data:[['usuario','hash'],[nuevoUser, hashActual]] });
-      localStorage.setItem('trzl_user', nuevoUser);
-      sessionStorage.setItem('trzl_user_active', nuevoUser);
-      document.getElementById('topbar-user').textContent = nuevoUser;
-      toast('✅ Usuario actualizado','s');
-    } catch(e){
-      toast('❌ Error al guardar usuario: ' + e.message,'e');
-    }
+    // Solo actualizar rol y secciones sin cambiar contraseña
+    if(existe){ existe.rol=rol; existe.secciones=secciones; }
+  }
+
+  const ok = await syncUsuariosSheet();
+  if(!ok) return;
+
+  // Si editó su propio usuario, reaplicar permisos
+  const userActivo = (sessionStorage.getItem('trzl_user_active')||'').toLowerCase();
+  if(nuevoUser === userActivo && np){
+    const h = await hashStr(np);
+    localStorage.setItem('trzl_user', nuevoUser);
+    localStorage.setItem('trzl_pwd_hash', h);
+  }
+
+  document.getElementById('cfg-usuario').value = '';
+  document.getElementById('cfg-pwd-new').value = '';
+  document.getElementById('cfg-pwd-confirm').value = '';
+  document.getElementById('cfg-rol').value = 'user';
+  pptoRolChange();
+
+  toast(esNuevo ? `✅ Usuario "${nuevoUser}" creado` : `✅ Usuario "${nuevoUser}" actualizado`, 's');
+  renderUsuariosList();
+}
+
+async function eliminarUsuario(usuario){
+  const userActivo = (sessionStorage.getItem('trzl_user_active')||'').toLowerCase();
+  if(usuario === userActivo){ toast('No puedes eliminarte a ti mismo','e'); return; }
+  if(_usuarios.length <= 1){ toast('Debe haber al menos un usuario','e'); return; }
+  const admins = _usuarios.filter(u=>u.rol==='admin');
+  if(admins.length===1 && admins[0].usuario===usuario){ toast('No puedes eliminar el único admin','e'); return; }
+  if(!confirm(`¿Eliminar el usuario "${usuario}"?`)) return;
+  _usuarios = _usuarios.filter(u=>u.usuario !== usuario);
+  const ok = await syncUsuariosSheet();
+  if(ok){ toast(`✅ Usuario "${usuario}" eliminado`,'s'); renderUsuariosList(); }
+}
+
+async function syncUsuariosSheet(){
+  try {
+    const rows = [
+      ['usuario','hash','rol','secciones'],
+      ..._usuarios.map(u=>[u.usuario, u.hash, u.rol||'user', (u.secciones||[]).join(',')])
+    ];
+    const resp = await apiPost({ action:'write', sheet:'Acceso', data: rows });
+    if(resp && resp.error){ toast('Error al guardar: '+resp.error,'e'); return false; }
+    return true;
+  } catch(e){
+    toast('Error al conectar con el Sheet','e');
+    return false;
   }
 }
 
+// Aplica visibilidad del sidebar según el rol del usuario activo
+function aplicarPermisos(){
+  // No hacer nada hasta que los usuarios estén cargados desde el Sheet
+  if(!_usuarios.length) return;
 
-// ===== SOCIEDADES =====
+  const userActivo = (sessionStorage.getItem('trzl_user_active')||'').toLowerCase();
+  const u = _usuarios.find(x=>x.usuario===userActivo);
+  // Si el usuario no se encuentra en la lista, mantener acceso completo (admin por defecto)
+  // Solo restringir cuando el usuario existe Y tiene rol 'user'
+  const esAdmin = !u || u.rol==='admin';
+  const secciones = esAdmin ? SECCIONES_ADMIN : (u.secciones||SECCIONES_DEFAULT_USER);
+
+  document.querySelectorAll('.nav-item[data-section], .nav-sec[data-section]').forEach(el=>{
+    const sec = el.dataset.section;
+    if(sec==='config-sec'){
+      el.style.display = esAdmin ? '' : 'none';
+    } else if(sec==='finanzas-sec'){
+      el.style.display = secciones.includes('presupuesto') ? '' : 'none';
+    } else {
+      el.style.display = secciones.includes(sec) ? '' : 'none';
+    }
+  });
+
+  // Redirigir solo si el usuario existe y no es admin y está en sección no permitida
+  if(u && !esAdmin && !secciones.includes(paginaActual) && paginaActual!=='dashboard'){
+    navTo('dashboard');
+  }
+}
+
+// Mantener compatibilidad
+async function cambiarCredenciales(){ await guardarUsuario(); }
+async function syncAcceso(usuario, hash){
+  const existe = _usuarios.find(u=>u.usuario===usuario);
+  if(existe){ existe.hash = hash; }
+  else { _usuarios.push({ usuario, hash, rol:'admin', secciones: SECCIONES_ADMIN }); }
+  await syncUsuariosSheet();
+}
+
 
 function initSociedades(){
   // Si no hay sociedades en DB, cargar las base
@@ -2505,9 +2894,10 @@ async function syncConfig(){
 }
 
 async function syncAcceso(usuario, hash){
-  try {
-    await apiPost({ action:'write', sheet:'Acceso', data:[['usuario','hash'],[usuario,hash]] });
-  } catch(e){ console.warn('syncAcceso:', e); }
+  const existe = _usuarios.find(u=>u.usuario===usuario);
+  if(existe){ existe.hash = hash; }
+  else { _usuarios.push({ usuario, hash }); }
+  await syncUsuariosSheet();
 }
 
 // ===== SUBIR PDF A DRIVE =====
@@ -2620,7 +3010,1196 @@ async function subirPDF(filaIdx, inputEl){
   inputEl.value = '';
 }
 
-// ===== INIT =====
+// ===== PRESUPUESTO DE CAJA =====
+
+const PPTO_MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+const PPTO_CATEGORIAS_GASTO = [
+  '1. Nómina y Honorarios',
+  '2. Instalaciones',
+  '3. Operaciones y Software',
+  '4. Comercial',
+  '5. Financiero',
+  '6. Otros'
+];
+
+// Estructura del presupuesto por año
+// DB.presupuestos = { '2026': { uf: [v1..v12], ingresos: [...], gastos: [...] } }
+
+function pptoGetDB(){
+  if(!DB.presupuestos) DB.presupuestos = {};
+  return DB.presupuestos;
+}
+
+function pptoGetAnio(anio){
+  const db = pptoGetDB();
+  if(!db[anio]) db[anio] = pptoAnioVacio(anio);
+  return db[anio];
+}
+
+function pptoAnioVacio(anio){
+  return {
+    uf: new Array(12).fill(0),
+    ingresos: [],
+    gastos: []
+  };
+}
+
+function pptoAnioActual(){
+  return parseInt(document.getElementById('ppto-anio-sel').value) || new Date().getFullYear();
+}
+
+function pptoTabActual(){
+  const activo = document.querySelector('.ppto-tab-btn.active');
+  return activo ? activo.dataset.tab : 'resumen';
+}
+
+// --- Inicializar selector de año y tabs ---
+function pptoInitUI(){
+  const db = pptoGetDB();
+  const anios = Object.keys(db).sort();
+  if(!anios.length){
+    // Crear año actual por defecto con datos del Excel
+    const anioActual = new Date().getFullYear();
+    db[anioActual] = pptoCargarDatosEjemplo(anioActual);
+    anios.push(String(anioActual));
+  }
+  const sel = document.getElementById('ppto-anio-sel');
+  sel.innerHTML = anios.map(a=>`<option value="${a}">${a}</option>`).join('');
+  sel.value = anios[anios.length-1];
+
+  // Tabs
+  document.getElementById('ppto-tabs').innerHTML = [
+    {id:'resumen', label:'📋 Resumen'},
+    {id:'parametros', label:'💱 UF'},
+    {id:'ingresos', label:'📥 Ingresos'},
+    {id:'gastos', label:'📤 Gastos'},
+  ].map(t=>`<button class="ppto-tab-btn ${t.id==='resumen'?'active':''}" data-tab="${t.id}" onclick="pptoSetTab('${t.id}')">${t.label}</button>`).join('');
+
+  pptoRender();
+}
+
+function pptoSetTab(tab){
+  document.querySelectorAll('.ppto-tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
+  document.querySelectorAll('.ppto-tab-panel').forEach(p=>p.style.display='none');
+  document.getElementById('ppto-tab-'+tab).style.display='block';
+  pptoRender(tab);
+}
+
+function pptoCargarAnio(){
+  pptoRender(pptoTabActual());
+}
+
+function pptoRender(tab){
+  tab = tab || pptoTabActual();
+  const anio = pptoAnioActual();
+  const d = pptoGetAnio(anio);
+  document.getElementById('ppto-titulo-anio').textContent = `Año ${anio}`;
+  if(tab==='resumen') pptoRenderResumen(anio, d);
+  if(tab==='parametros') pptoRenderParametros(anio, d);
+  if(tab==='ingresos') pptoRenderIngresos(anio, d);
+  if(tab==='gastos') pptoRenderGastos(anio, d);
+}
+
+// --- RESUMEN ---
+function pptoRenderResumen(anio, d){
+  const tbody = document.getElementById('ppto-tbody-resumen');
+  const ingresosMes = pptoCalcIngresosMes(d, anio);
+  const egresosMes = pptoCalcEgresosMes(d);
+  const totalIngresos = ingresosMes.reduce((s,v)=>s+v,0);
+  const totalEgresos  = egresosMes.reduce((s,v)=>s+v,0);
+
+  // Superávit mensual
+  const superavitMes = ingresosMes.map((v,i)=>v - egresosMes[i]);
+  // Superávit acumulado
+  let acum = 0;
+  const acumMes = superavitMes.map(v=>{ acum+=v; return acum; });
+  const margenMes = ingresosMes.map((v,i)=> v>0 ? superavitMes[i]/v : 0);
+
+  let html = '';
+
+  // ▶ INGRESOS section header
+  html += `<tr class="ppto-section-hdr"><td colspan="14">▶  INGRESOS</td></tr>`;
+  // Filas de clientes/ingresos
+  d.ingresos.forEach(row=>{
+    const vals = pptoIngresoCLP(row, d.uf, anio);
+    const total = vals.reduce((s,v)=>s+v,0);
+    html += `<tr><td style="padding-left:16px;font-size:12px">${row.nombre}</td>
+      ${vals.map(v=>`<td class="ppto-num">${v>0?fmtClp(Math.round(v)):''}</td>`).join('')}
+      <td class="ppto-total">${total>0?fmtClp(Math.round(total)):''}</td>
+    </tr>`;
+  });
+  // Total ingresos
+  html += `<tr class="ppto-subtotal"><td style="padding-left:16px">TOTAL INGRESOS</td>
+    ${ingresosMes.map(v=>`<td class="ppto-num" style="font-weight:700">${fmtClp(Math.round(v))}</td>`).join('')}
+    <td class="ppto-total">${fmtClp(Math.round(totalIngresos))}</td>
+  </tr>`;
+
+  // ▶ EGRESOS section header
+  html += `<tr class="ppto-section-hdr"><td colspan="14">▶  EGRESOS</td></tr>`;
+  // Subtotales por categoría
+  const cats = {};
+  d.gastos.forEach(g=>{
+    const c = g.categoria;
+    if(!cats[c]) cats[c] = new Array(12).fill(0);
+    g.valores.forEach((v,i)=>cats[c][i]+=(parseFloat(v)||0));
+  });
+  Object.entries(cats).forEach(([cat, vals])=>{
+    const total = vals.reduce((s,v)=>s+v,0);
+    const shortCat = cat.replace(/^\d+\. /,'');
+    html += `<tr><td style="padding-left:16px;font-size:12px">${shortCat}</td>
+      ${vals.map(v=>`<td class="ppto-num">${v>0?fmtClp(Math.round(v)):''}</td>`).join('')}
+      <td class="ppto-total">${total>0?fmtClp(Math.round(total)):''}</td>
+    </tr>`;
+  });
+  // Total egresos
+  html += `<tr class="ppto-subtotal"><td style="padding-left:16px">TOTAL EGRESOS</td>
+    ${egresosMes.map(v=>`<td class="ppto-num" style="font-weight:700">${fmtClp(Math.round(v))}</td>`).join('')}
+    <td class="ppto-total">${fmtClp(Math.round(totalEgresos))}</td>
+  </tr>`;
+
+  // ▶ RESULTADO
+  html += `<tr class="ppto-section-hdr"><td colspan="14">▶  RESULTADO DE CAJA</td></tr>`;
+  // Superávit mensual
+  html += `<tr class="${superavitMes.reduce((s,v)=>s+v,0)>=0?'ppto-result-pos':'ppto-result-neg'}">
+    <td style="padding-left:16px;font-size:11px;font-weight:700">SUPERÁVIT / DÉFICIT MENSUAL</td>
+    ${superavitMes.map(v=>`<td class="ppto-num" style="${v<0?'color:var(--red)':''}">${fmtClp(Math.round(v))}</td>`).join('')}
+    <td class="ppto-total">${fmtClp(Math.round(superavitMes.reduce((s,v)=>s+v,0)))}</td>
+  </tr>`;
+  // Acumulado
+  html += `<tr class="ppto-result-acum">
+    <td style="padding-left:16px;font-size:11px;font-weight:700">SUPERÁVIT / DÉFICIT ACUMULADO</td>
+    ${acumMes.map(v=>`<td class="ppto-num" style="${v<0?'color:var(--red)':''}">${fmtClp(Math.round(v))}</td>`).join('')}
+    <td class="ppto-total">${fmtClp(Math.round(acumMes[11]||0))}</td>
+  </tr>`;
+  // Margen
+  html += `<tr class="ppto-margen">
+    <td style="padding-left:16px;font-size:11px">Margen de utilidad mensual (%)</td>
+    ${margenMes.map(v=>`<td class="ppto-num">${(v*100).toFixed(1)}%</td>`).join('')}
+    <td class="ppto-total">${totalIngresos>0?((superavitMes.reduce((s,v)=>s+v,0)/totalIngresos)*100).toFixed(1)+'%':'—'}</td>
+  </tr>`;
+
+  tbody.innerHTML = html;
+}
+
+// --- PARÁMETROS (UF) ---
+function pptoRenderParametros(anio, d){
+  const grid = document.getElementById('ppto-uf-grid');
+  grid.innerHTML = PPTO_MESES.map((mes,i)=>`
+    <div>
+      <label class="fl">${mes} ${anio}</label>
+      <div style="display:flex;gap:6px">
+        <input type="number" class="ppto-input editable" style="border:1px solid var(--gray-200);border-radius:var(--rs);padding:7px 10px;background:#fff;text-align:left"
+          id="ppto-uf-${i}" value="${d.uf[i]||''}" placeholder="0.00" step="0.01"
+          oninput="pptoSetUF(${i},this.value)">
+      </div>
+    </div>
+  `).join('');
+}
+
+function pptoSetUF(idx, val){
+  const anio = pptoAnioActual();
+  pptoGetAnio(anio).uf[idx] = parseFloat(val)||0;
+}
+
+function pptoSincUFDesdeFacturacion(){
+  const anio = pptoAnioActual();
+  const d = pptoGetAnio(anio);
+  let importados = 0;
+  DB.meses.forEach(m=>{
+    if(m.anio === anio && m.uf && m.mes>=1 && m.mes<=12){
+      d.uf[m.mes-1] = m.uf;
+      importados++;
+      const inp = document.getElementById(`ppto-uf-${m.mes-1}`);
+      if(inp) inp.value = m.uf;
+    }
+  });
+  toast(importados>0 ? `✅ ${importados} valores UF importados desde Facturación`:'ℹ️ No hay meses de este año en Facturación', importados>0?'s':'w');
+}
+
+// --- INGRESOS ---
+// Tipos: 'uf' = tarifa UF × uf[mes] (período según cliente), 'clp' = monto CLP directo por mes
+
+// Busca el totalClp real facturado para un cliente en un mes/año específico
+function pptoGetRealDesdeFact(clave, mesIdx, anio){
+  // mesIdx es 0-indexed
+  const mes = mesIdx + 1;
+  const m = DB.meses.find(m => m.mes === mes && m.anio === anio);
+  if(!m) return null;
+  const fila = m.filas.find(f => f.clave === clave && !f.extra);
+  if(!fila) return null;
+  return fila.totalClp || null;
+}
+
+function pptoRenderIngresos(anio, d){
+  const tbody = document.getElementById('ppto-tbody-ingresos');
+  if(!d.ingresos.length){
+    tbody.innerHTML = '<tr><td colspan="16" class="no-rows">Sin líneas. Usa "Importar clientes activos" para comenzar.</td></tr>';
+    return;
+  }
+
+  // Leyenda
+  const leyenda = `<tr style="background:#f0f4ff;border-bottom:1px solid var(--gray-200)">
+    <td colspan="2" style="padding:5px 12px;font-size:10px;color:var(--gray-600)">
+      <strong>Celdas:</strong>
+      <span style="margin-left:6px;padding:1px 6px;border-radius:3px;background:#e8f5f4;color:#2A9D8F;font-size:10px;font-weight:600">📊 real</span> = dato real desde Facturación &nbsp;|&nbsp;
+      <span style="padding:1px 6px;border-radius:3px;background:#f0f4ff;color:#2952a3;font-size:10px;font-weight:600">✏️ editable</span> = proyección editable
+    </td>
+    ${PPTO_MESES.map(m=>`<td style="text-align:center;font-size:10px;font-weight:600;color:var(--gray-400);padding:5px 2px">${m}</td>`).join('')}
+    <td colspan="2"></td>
+  </tr>`;
+
+  let html = leyenda + d.ingresos.map((row,ri)=>{
+    if(row.tipo==='fijo'||row.tipo==='uf-meses') row.tipo='uf';
+    if(row.tipo==='variable') row.tipo='clp';
+    const tipo = row.tipo||'uf';
+    const bgRow = ri%2===0?'#f9fafb':'#fff';
+
+    // Período desde el cliente
+    const cli = row.clave ? DB.clientes.find(c=>c.clave===row.clave) : null;
+    let periodoTxt = '';
+    if(cli && (cli.desdeMes||cli.hastaMes)){
+      const desde = cli.desdeMes ? MESES_NOMBRES[cli.desdeMes-1].slice(0,3) : '—';
+      const hasta = cli.hastaMes ? MESES_NOMBRES[cli.hastaMes-1].slice(0,3) : 'indef.';
+      periodoTxt = `<span style="font-size:10px;color:var(--amber);background:var(--amber-light);padding:1px 6px;border-radius:3px">${desde}→${hasta}</span>`;
+    }
+
+    const colNombre = `<td style="font-size:12px;padding:6px 8px;min-width:170px">
+      <input type="text" class="ppto-input editable" style="border:1px solid var(--gray-200);border-radius:4px;background:#fff;text-align:left;font-size:12px"
+        value="${row.nombre}" placeholder="Nombre" oninput="pptoIngreso(${ri},'nombre',this.value)">
+      <div style="margin-top:3px;display:flex;align-items:center;gap:4px;flex-wrap:wrap">
+        <select style="font-size:10px;border:1px solid var(--gray-200);border-radius:3px;padding:2px 5px;background:#fff;cursor:pointer;color:var(--gray-600)"
+          onchange="pptoIngreso(${ri},'tipo',this.value)">
+          <option value="uf" ${tipo==='uf'?'selected':''}>UF × mes</option>
+          <option value="clp" ${tipo==='clp'?'selected':''}>CLP directo</option>
+        </select>
+        ${periodoTxt}
+      </div>
+    </td>`;
+
+    const colTarifa = `<td style="padding:4px 6px;min-width:75px">
+      ${tipo==='uf'
+        ? `<input type="number" class="ppto-input editable" style="border:1px solid var(--gray-200);border-radius:4px;background:#fff;width:70px"
+            value="${row.tarifa||''}" placeholder="UF" step="0.01" oninput="pptoIngreso(${ri},'tarifa',this.value)">`
+        : `<span style="font-size:10px;color:var(--gray-400);padding:0 8px">—</span>`
+      }
+    </td>`;
+
+    // Celdas por mes — lógica híbrida para tipo 'uf'
+    let colsMes = '';
+    let total = 0;
+
+    if(tipo==='uf'){
+      const ufVals = pptoIngresoCLP(row, d.uf, anio); // valores calculados UF
+      colsMes = ufVals.map((ufClp, mi)=>{
+        const activo = pptoMesActivo(row, mi, anio);
+        if(!activo){
+          total += 0;
+          return `<td class="ppto-num" style="color:var(--gray-400);background:#fafafa">—</td>`;
+        }
+        // Buscar dato real en Facturación
+        const real = row.clave ? pptoGetRealDesdeFact(row.clave, mi, anio) : null;
+        if(real !== null){
+          total += real;
+          return `<td style="padding:2px 4px;text-align:right">
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:1px">
+              <span style="font-size:11px;font-weight:600;color:var(--navy)">${fmtClp(Math.round(real))}</span>
+              <span style="font-size:9px;padding:0px 4px;border-radius:2px;background:#e8f5f4;color:#2A9D8F;font-weight:600">📊 real</span>
+            </div>
+          </td>`;
+        }
+        // Sin dato real → input editable con valor UF como default
+        // Buscar si hay override guardado
+        if(!row.overrides) row.overrides = {};
+        const override = row.overrides[mi];
+        const displayVal = override !== undefined ? override : (ufClp > 0 ? Math.round(ufClp) : '');
+        total += parseFloat(displayVal)||ufClp;
+        return `<td style="padding:2px 3px">
+          <input type="number" class="ppto-input editable" style="border:1px solid #c8d8f0;border-radius:4px;background:#f0f4ff;width:88px;color:#2952a3;font-weight:500"
+            value="${displayVal}" placeholder="${ufClp>0?Math.round(ufClp):''}"
+            oninput="pptoIngreso(${ri},'override-${mi}',this.value)"
+            title="Proyección editable. UF base: ${fmtClp(Math.round(ufClp))}">
+        </td>`;
+      }).join('');
+    } else {
+      // CLP directo: todos editables
+      const vals = row.valores||new Array(12).fill(0);
+      total = vals.reduce((s,v)=>s+(parseFloat(v)||0),0);
+      colsMes = vals.map((v,mi)=>`
+        <td style="padding:2px 3px">
+          <input type="number" class="ppto-input editable" style="border:1px solid var(--gray-200);border-radius:4px;background:#fff;width:88px"
+            value="${v||''}" placeholder="0" oninput="pptoIngreso(${ri},'val-${mi}',this.value)">
+        </td>`).join('');
+    }
+
+    return `<tr style="background:${bgRow}">
+      ${colNombre}${colTarifa}${colsMes}
+      <td class="ppto-total">${total>0?fmtClp(Math.round(total)):''}</td>
+      <td style="padding:4px 6px">
+        <button class="ib del" onclick="pptoEliminarIngreso(${ri})" title="Eliminar">🗑</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  // Footer total — combina reales + proyecciones
+  const ingresosMes = pptoCalcIngresosMes(d, anio);
+  html += `<tr class="ppto-subtotal">
+    <td colspan="2" style="padding-left:16px">TOTAL INGRESOS</td>
+    ${ingresosMes.map(v=>`<td class="ppto-num">${fmtClp(Math.round(v))}</td>`).join('')}
+    <td class="ppto-total">${fmtClp(Math.round(ingresosMes.reduce((s,v)=>s+v,0)))}</td>
+    <td></td>
+  </tr>`;
+
+  tbody.innerHTML = html;
+}
+
+// Retorna true si el mes (0-indexed) del año dado está dentro del período activo del cliente
+function pptoMesActivo(row, mi, anio){
+  const cli = row.clave ? DB.clientes.find(c=>c.clave===row.clave) : null;
+  if(!cli) return true; // sin cliente vinculado → siempre activo
+  const mesNum = mi + 1; // 1-indexed
+  const desde = cli.desdeMes && cli.desdeAnio ? {m:cli.desdeMes, a:cli.desdeAnio} : null;
+  const hasta = cli.hastaMes && cli.hastaAnio ? {m:cli.hastaMes, a:cli.hastaAnio} : null;
+  const actual = {m: mesNum, a: anio};
+  const cmpMesAnio = (a,b) => a.a!==b.a ? a.a-b.a : a.m-b.m;
+  if(desde && cmpMesAnio(actual, desde) < 0) return false;
+  if(hasta && cmpMesAnio(actual, hasta) > 0) return false;
+  return true;
+}
+
+function pptoIngresoCLP(row, uf, anio){
+  // Normalizar tipo legado
+  if(row.tipo==='fijo'||row.tipo==='uf-meses') row.tipo='uf';
+  if(row.tipo==='variable') row.tipo='clp';
+  const tipo = row.tipo||'uf';
+  const anioN = anio || pptoAnioActual();
+
+  if(tipo==='clp'){
+    return (row.valores||new Array(12).fill(0)).map(v=>parseFloat(v)||0);
+  }
+  // tipo 'uf': tarifa × uf[mes], solo si el mes está dentro del período activo
+  const tarifa = parseFloat(row.tarifa)||0;
+  return uf.map((u,i)=>{
+    if(!pptoMesActivo(row, i, anioN)) return 0;
+    return tarifa * (parseFloat(u)||0);
+  });
+}
+
+function pptoIngreso(ri, campo, val){
+  const anio = pptoAnioActual();
+  const d = pptoGetAnio(anio);
+  const row = d.ingresos[ri];
+  if(campo==='nombre') row.nombre = val;
+  else if(campo==='tarifa') row.tarifa = parseFloat(val)||0;
+  else if(campo==='tipo'){
+    row.tipo = val;
+    if(val==='clp' && !row.valores) row.valores = new Array(12).fill(0);
+    pptoRender('ingresos');
+    return;
+  }
+  else if(campo.startsWith('override-')){
+    const mi = parseInt(campo.split('-')[1]);
+    if(!row.overrides) row.overrides = {};
+    row.overrides[mi] = val===''||val===null ? undefined : parseFloat(val)||0;
+  }
+  else if(campo.startsWith('val-')){
+    const mi = parseInt(campo.split('-')[1]);
+    if(!row.valores) row.valores = new Array(12).fill(0);
+    row.valores[mi] = parseFloat(val)||0;
+  }
+}
+
+function pptoActualizarTotalesIngresos(d){
+  // Actualizar resumen si visible
+  if(document.getElementById('ppto-tab-resumen').style.display !== 'none'){
+    pptoRenderResumen(pptoAnioActual(), d);
+  }
+}
+
+function pptoToggleIngreso(ri){
+  const anio = pptoAnioActual();
+  const d = pptoGetAnio(anio);
+  d.ingresos[ri].activo = d.ingresos[ri].activo===false ? true : false;
+  pptoRender('ingresos');
+}
+
+function pptoEliminarIngreso(ri){
+  const anio = pptoAnioActual();
+  const d = pptoGetAnio(anio);
+  d.ingresos.splice(ri,1);
+  pptoRender('ingresos');
+}
+
+function pptoAgregarIngreso(){
+  const anio = pptoAnioActual();
+  const d = pptoGetAnio(anio);
+  d.ingresos.push({ nombre:'Nuevo ingreso', tarifa:0, tipo:'uf', activo:true });
+  pptoRender('ingresos');
+}
+
+function pptoImportarClientesActivos(){
+  const anio = pptoAnioActual();
+  const d = pptoGetAnio(anio);
+  let agregados = 0;
+  DB.clientes.filter(c=>c.activo!==false).forEach(c=>{
+    const existe = d.ingresos.find(r=>r.clave===c.clave);
+    if(!existe){
+      d.ingresos.push({
+        clave: c.clave,
+        nombre: c.razon,
+        tarifa: (c.empresas||1)*(c.tarifa||0),
+        tipo: 'uf',
+        activo: true
+      });
+      agregados++;
+    }
+  });
+  // Agregar línea de ingresos variables
+  if(!d.ingresos.find(r=>r.tipo==='clp')){
+    d.ingresos.push({ nombre:'Asesorías Tributarias Especiales', tipo:'clp', valores:new Array(12).fill(0), activo:true });
+  }
+  toast(agregados>0?`✅ ${agregados} clientes importados`:'ℹ️ Todos los clientes ya están en el presupuesto', agregados>0?'s':'w');
+  pptoRender('ingresos');
+}
+
+// --- GASTOS ---
+function pptoRenderGastos(anio, d){
+  const tbody = document.getElementById('ppto-tbody-gastos');
+  if(!d.gastos.length){
+    tbody.innerHTML = '<tr><td colspan="16" class="no-rows">Sin conceptos. Haz clic en "＋ Agregar concepto" para comenzar.</td></tr>';
+    return;
+  }
+
+  // Agrupar por categoría
+  let html = '';
+  let catActual = null;
+  d.gastos.forEach((g, gi)=>{
+    if(g.categoria !== catActual){
+      catActual = g.categoria;
+      // Subtotal de categoría anterior
+      // Header categoría
+      html += `<tr class="ppto-section-hdr"><td colspan="16" style="font-size:11px">${g.categoria}</td></tr>`;
+    }
+    const total = g.valores.reduce((s,v)=>s+(parseFloat(v)||0),0);
+    html += `<tr style="background:${gi%2===0?'#f9fafb':'#fff'}">
+      <td style="padding:4px 8px">
+        <select class="ppto-input" style="border:1px solid var(--gray-200);border-radius:4px;background:#fff;text-align:left;font-size:11px"
+          onchange="pptoGasto(${gi},'categoria',this.value)">
+          ${PPTO_CATEGORIAS_GASTO.map(c=>`<option value="${c}" ${c===g.categoria?'selected':''}>${c}</option>`).join('')}
+        </select>
+      </td>
+      <td style="padding:4px 8px">
+        <input type="text" class="ppto-input editable" style="border:1px solid var(--gray-200);border-radius:4px;background:#fff;text-align:left;font-size:12px"
+          value="${g.concepto}" placeholder="Concepto" oninput="pptoGasto(${gi},'concepto',this.value)">
+      </td>
+      ${g.valores.map((v,mi)=>`
+        <td style="padding:2px 3px">
+          <input type="number" class="ppto-input editable" style="border:1px solid var(--gray-200);border-radius:4px;background:#fff;width:82px"
+            value="${v||''}" placeholder="0" oninput="pptoGasto(${gi},${mi},this.value)">
+        </td>`).join('')}
+      <td class="ppto-total">${total>0?fmtClp(Math.round(total)):''}</td>
+      <td style="padding:4px 8px">
+        <button class="ib del" onclick="pptoEliminarGasto(${gi})" title="Eliminar">🗑</button>
+      </td>
+    </tr>`;
+  });
+
+  // Subtotales por categoría
+  const catTotals = {};
+  d.gastos.forEach(g=>{
+    if(!catTotals[g.categoria]) catTotals[g.categoria] = new Array(12).fill(0);
+    g.valores.forEach((v,i)=>catTotals[g.categoria][i]+=(parseFloat(v)||0));
+  });
+  Object.entries(catTotals).forEach(([cat, vals])=>{
+    const total = vals.reduce((s,v)=>s+v,0);
+    if(total===0) return;
+    html += `<tr class="ppto-subtotal">
+      <td colspan="2" style="padding-left:16px;font-size:11px">SUBTOTAL ${cat.replace(/^\d+\. /,'').toUpperCase()}</td>
+      ${vals.map(v=>`<td class="ppto-num">${v>0?fmtClp(Math.round(v)):''}</td>`).join('')}
+      <td class="ppto-total">${fmtClp(Math.round(total))}</td>
+      <td></td>
+    </tr>`;
+  });
+
+  // Total egresos
+  const egresosMes = pptoCalcEgresosMes(d);
+  html += `<tr class="ppto-subtotal" style="border-top:2px solid var(--navy)">
+    <td colspan="2" style="padding-left:16px">TOTAL GASTOS</td>
+    ${egresosMes.map(v=>`<td class="ppto-num" style="font-weight:700">${fmtClp(Math.round(v))}</td>`).join('')}
+    <td class="ppto-total">${fmtClp(Math.round(egresosMes.reduce((s,v)=>s+v,0)))}</td>
+    <td></td>
+  </tr>`;
+
+  tbody.innerHTML = html;
+}
+
+function pptoGasto(gi, campo, val){
+  const anio = pptoAnioActual();
+  const d = pptoGetAnio(anio);
+  if(campo==='categoria') d.gastos[gi].categoria = val;
+  else if(campo==='concepto') d.gastos[gi].concepto = val;
+  else { d.gastos[gi].valores[campo] = parseFloat(val)||0; }
+}
+
+function pptoEliminarGasto(gi){
+  const anio = pptoAnioActual();
+  const d = pptoGetAnio(anio);
+  d.gastos.splice(gi,1);
+  pptoRender('gastos');
+}
+
+function pptoAgregarGasto(){
+  const anio = pptoAnioActual();
+  const d = pptoGetAnio(anio);
+  const cat = d.gastos.length>0 ? d.gastos[d.gastos.length-1].categoria : PPTO_CATEGORIAS_GASTO[0];
+  d.gastos.push({ categoria: cat, concepto: 'Nuevo concepto', valores: new Array(12).fill(0) });
+  pptoRender('gastos');
+}
+
+// --- CÁLCULOS ---
+function pptoCalcIngresosMes(d, anio){
+  const anioN = anio || pptoAnioActual();
+  const totales = new Array(12).fill(0);
+  d.ingresos.forEach(row=>{
+    if(row.tipo==='fijo'||row.tipo==='uf-meses') row.tipo='uf';
+    if(row.tipo==='variable') row.tipo='clp';
+    const tipo = row.tipo||'uf';
+
+    if(tipo==='clp'){
+      (row.valores||new Array(12).fill(0)).forEach((v,i)=>totales[i]+=(parseFloat(v)||0));
+      return;
+    }
+    // tipo 'uf': usar real de facturación si existe, luego override, luego cálculo UF
+    const ufVals = pptoIngresoCLP(row, d.uf, anioN);
+    ufVals.forEach((ufClp, mi)=>{
+      if(!pptoMesActivo(row, mi, anioN)) return;
+      const real = row.clave ? pptoGetRealDesdeFact(row.clave, mi, anioN) : null;
+      if(real !== null){ totales[mi] += real; return; }
+      const override = row.overrides && row.overrides[mi] !== undefined ? row.overrides[mi] : null;
+      totales[mi] += override !== null ? override : ufClp;
+    });
+  });
+  return totales;
+}
+
+function pptoCalcEgresosMes(d){
+  const totales = new Array(12).fill(0);
+  d.gastos.forEach(g=>{
+    g.valores.forEach((v,i)=>totales[i]+=(parseFloat(v)||0));
+  });
+  return totales;
+}
+
+// --- GUARDAR ---
+async function pptoGuardar(){
+  saveDB();
+  toast('✅ Presupuesto guardado localmente','s');
+}
+
+// --- NUEVO AÑO ---
+function pptoNuevoAnio(){
+  const anio = parseInt(prompt('¿Para qué año?', new Date().getFullYear()+1));
+  if(!anio || isNaN(anio) || anio<2020 || anio>2050){ toast('Año inválido','e'); return; }
+  const db = pptoGetDB();
+  if(db[anio]){ toast(`El año ${anio} ya existe`,'w'); return; }
+
+  // Copiar estructura del año anterior si existe
+  const anios = Object.keys(db).sort();
+  const ultimo = anios.length>0 ? anios[anios.length-1] : null;
+  if(ultimo && confirm(`¿Copiar estructura de gastos e ingresos del ${ultimo}?`)){
+    const src = db[ultimo];
+    db[anio] = {
+      uf: new Array(12).fill(0),
+      ingresos: src.ingresos.map(r=>({...r, valores:r.valores?new Array(12).fill(0):undefined})),
+      gastos: src.gastos.map(g=>({...g, valores:new Array(12).fill(0)}))
+    };
+  } else {
+    db[anio] = pptoAnioVacio(anio);
+  }
+
+  const sel = document.getElementById('ppto-anio-sel');
+  const opt = document.createElement('option');
+  opt.value = anio; opt.textContent = anio;
+  sel.appendChild(opt);
+  sel.value = anio;
+  toast(`✅ Año ${anio} creado`,'s');
+  pptoRender(pptoTabActual());
+}
+
+// --- DATOS EJEMPLO (carga inicial desde el Excel) ---
+function pptoCargarDatosEjemplo(anio){
+  // UF del 2026 del Excel
+  const uf2026 = [39747.15,39693.25,39819.01,39841.72,40186.79,40695.38,40898.86,41103.35,41308.87,41515.41,41722.99,41931.60];
+  const ufAnio = anio===2026 ? uf2026 : new Array(12).fill(0);
+
+  // Ingresos (tarifas UF × empresas del Excel)
+  const ingresos = [
+    { clave:'RRG',     nombre:'RRG Chile Consulting SpA',    tarifa:5.5833*12, tipo:'uf', activo:true },
+    { clave:'Aediles', nombre:'Aediles Talinay Chile SpA',    tarifa:17*1,      tipo:'uf', activo:true },
+    { clave:'Holdco',  nombre:'PMGD Holdco SpA',              tarifa:2*4,        tipo:'uf', activo:true },
+    { clave:'Tralka',  nombre:'Tralka SpA',                   tarifa:2*39,       tipo:'uf', activo:true },
+    { clave:'Antu',    nombre:'Antu Energy SpA',              tarifa:2*11,       tipo:'uf', activo:true },
+    { clave:'Solek',   nombre:'Solek Chile Services SpA',     tarifa:2*23,       tipo:'uf', activo:true },
+    { nombre:'Asesorías Tributarias Especiales', tipo:'clp', valores:[0,0,0,0,0,0,0,3000000,0,0,0,0], activo:true },
+    { nombre:'Otros ingresos no clasificados',   tipo:'clp', valores:new Array(12).fill(0), activo:true },
+  ];
+
+  // Gastos del Excel
+  const gastos = [
+    { categoria:'1. Nómina y Honorarios', concepto:'CJ — Honorarios Aediles Talinay Chile SpA',  valores:[1200000,1200000,1200000,1200000,1200000,1200000,1200000,1200000,1200000,1200000,1200000,1200000] },
+    { categoria:'1. Nómina y Honorarios', concepto:'CJ — Honorarios RRG Chile Consulting SpA',   valores:[1150000,1150000,1150000,1150000,1150000,1150000,1150000,1150000,1150000,1150000,1150000,1150000] },
+    { categoria:'1. Nómina y Honorarios', concepto:'NA — Honorarios Aediles Talinay Chile SpA',  valores:[1200000,1200000,1200000,1200000,1200000,1200000,1200000,1200000,1200000,1200000,1200000,1200000] },
+    { categoria:'1. Nómina y Honorarios', concepto:'NA — Honorarios RRG Chile Consulting SpA',   valores:[1150000,1150000,1150000,1150000,1150000,1150000,1150000,1150000,1150000,1150000,1150000,1150000] },
+    { categoria:'1. Nómina y Honorarios', concepto:'Valentín — Honorarios Aediles Talinay',      valores:[200000,200000,200000,200000,200000,200000,200000,200000,200000,200000,200000,200000] },
+    { categoria:'1. Nómina y Honorarios', concepto:'Valentín — Honorarios RRG Chile',            valores:[200000,200000,200000,200000,200000,300000,300000,300000,300000,300000,300000,300000] },
+    { categoria:'1. Nómina y Honorarios', concepto:'Valentín — Honorarios Solek Chile',          valores:[200000,200000,200000,200000,200000,200000,200000,200000,200000,200000,200000,200000] },
+    { categoria:'1. Nómina y Honorarios', concepto:'Isabel — Sueldo',                            valores:[0,0,0,0,500000,800000,800000,800000,800000,800000,800000,800000] },
+    { categoria:'1. Nómina y Honorarios', concepto:'Juan Carlos — Sueldo',                       valores:[0,0,0,0,500000,600000,600000,600000,600000,600000,600000,600000] },
+    { categoria:'1. Nómina y Honorarios', concepto:'Sandra — Sueldo',                            valores:[0,0,0,0,1000000,1000000,1000000,1000000,1000000,1000000,1000000,1000000] },
+    { categoria:'1. Nómina y Honorarios', concepto:'Honorarios / Freelancers externos',          valores:[675702,674785,676923,677309,683175,691821,0,0,0,0,0,0] },
+    { categoria:'2. Instalaciones',       concepto:'Renta oficina — Officeneg',                  valores:[0,77350,0,0,0,0,77350,0,0,0,0,0] },
+    { categoria:'2. Instalaciones',       concepto:'Entel — Telefonía / Internet',               valores:[0,0,0,0,0,60000,60000,60000,60000,60000,60000,60000] },
+    { categoria:'3. Operaciones y Software', concepto:'HR — Contabilidad y Remuneraciones',       valores:[0,0,0,0,0,0,474965,474965,474965,0,0,0] },
+    { categoria:'3. Operaciones y Software', concepto:'HR — Hyper Renta AT-2026',                valores:[0,0,0,0,0,0,0,0,0,533333,533333,533334] },
+    { categoria:'3. Operaciones y Software', concepto:'Servidores',                              valores:[59725,59725,59725,59725,59725,59725,59725,59725,59725,59725,59725,59725] },
+    { categoria:'3. Operaciones y Software', concepto:'Claude AI',                               valores:[150000,150000,150000,150000,150000,150000,150000,150000,150000,150000,150000,150000] },
+    { categoria:'3. Operaciones y Software', concepto:'Google Workspace',                        valores:[20000,20000,20000,20000,20000,20000,20000,20000,20000,20000,20000,20000] },
+    { categoria:'3. Operaciones y Software', concepto:'Transporte y viáticos',                   valores:[80000,80000,80000,80000,80000,80000,80000,80000,80000,80000,80000,80000] },
+    { categoria:'5. Financiero',          concepto:'Impuestos y cuotas fiscales',                valores:[500000,500000,500000,500000,500000,500000,500000,500000,500000,500000,500000,500000] },
+  ];
+
+  return { uf: ufAnio, ingresos, gastos };
+}
+
+// ===== EXCEL RESUMEN FACTURACIÓN =====
+async function exportarExcelFacturacion(){
+  const m = DB.meses[mesSelIdx];
+  if(!m){ toast('Selecciona un mes primero','w'); return; }
+  toast('⏳ Generando Excel...','w');
+  try {
+    const wb = new ExcelJS.Workbook();
+    const NAVY='FF0C0C59',BLANCO='FFFFFFFF',AZUL1='FFCEDFF3',AMBER='FFFFF0CC',NAVY2='FFE8E8F5';
+    const thin={style:'thin',color:{argb:'FFD0D8E8'}};
+    const border={top:thin,bottom:thin,left:thin,right:thin};
+    const hdrFill={type:'pattern',pattern:'solid',fgColor:{argb:NAVY}};
+    const hdrFont={name:'Montserrat',bold:true,color:{argb:BLANCO},size:9};
+    const bodyFont={name:'Montserrat',size:9};
+    const ctr={horizontal:'center',vertical:'middle'};
+    const lft={horizontal:'left',vertical:'middle'};
+    const rgt={horizontal:'right',vertical:'middle'};
+
+    const ws = wb.addWorksheet('Facturación '+m.label);
+    ws.views=[{showGridLines:false}];
+    ws.getColumn('A').width=3; ws.getColumn('B').width=10; ws.getColumn('C').width=34;
+    ws.getColumn('D').width=16; ws.getColumn('E').width=10; ws.getColumn('F').width=11;
+    ws.getColumn('G').width=13; ws.getColumn('H').width=14; ws.getColumn('I').width=10;
+    ws.getColumn('J').width=28;
+
+    ws.mergeCells('B1:J1');
+    ws.getCell('B1').value=`FACTURACIÓN ${m.label.toUpperCase()} — TERRAZUL ASESORÍAS LIMITADA`;
+    ws.getCell('B1').font={name:'Montserrat',bold:true,color:{argb:NAVY},size:11};
+    ws.getCell('B1').alignment=lft; ws.getRow(1).height=22;
+
+    ws.mergeCells('B2:J2');
+    ws.getCell('B2').value=`Valor UF al día 5: $${fmtNum(m.uf)}  ·  RUT Terrazul: ${DB.config.rut||'77.685.857-9'}`;
+    ws.getCell('B2').font={name:'Montserrat',color:{argb:'FF5A6A7E'},size:8};
+    ws.getRow(2).height=15; ws.getRow(3).height=8;
+
+    ws.getRow(4).height=22;
+    [{col:'B',label:'N°'},{col:'C',label:'Razón Social'},{col:'D',label:'RUT'},
+     {col:'E',label:'Empresas'},{col:'F',label:'Tarifa UF'},{col:'G',label:'Total UF'},
+     {col:'H',label:'Total CLP'},{col:'I',label:'Folio'},{col:'J',label:'Comentarios'}
+    ].forEach(({col,label})=>{
+      const c=ws.getCell(`${col}4`); c.value=label; c.fill=hdrFill; c.font=hdrFont;
+      c.alignment=col==='C'||col==='J'?lft:ctr; c.border=border;
+    });
+
+    const filas=m.filas.filter(f=>f.activo!==false);
+    let tUF=0,tCLP=0;
+    filas.forEach((f,i)=>{
+      const row=5+i; ws.getRow(row).height=18;
+      const rf={type:'pattern',pattern:'solid',fgColor:{argb:i%2===0?AZUL1:BLANCO}};
+      const setC=(col,val,fmt,align,bold)=>{
+        const c=ws.getCell(`${col}${row}`); c.value=val;
+        c.font={...bodyFont,bold:!!bold}; c.fill=rf;
+        c.alignment=align||ctr; c.border=border; if(fmt)c.numFmt=fmt;
+      };
+      setC('B',i+1); setC('C',f.razon,null,lft); setC('D',f.rut,null,ctr);
+      setC('E',f.empresas||1); setC('F',f.tarifa||0,'#,##0.00##');
+      setC('G',f.totalUf||0,'#,##0.00'); setC('H',f.totalClp||0,'#,##0');
+      setC('I',f.folio||'',null,ctr); setC('J',f.desc||'',null,lft);
+      tUF+=f.totalUf||0; tCLP+=f.totalClp||0;
+    });
+
+    const tr=5+filas.length; ws.getRow(tr).height=20;
+    ws.mergeCells(`B${tr}:F${tr}`);
+    ws.getCell(`B${tr}`).value='TOTAL'; ws.getCell(`B${tr}`).fill=hdrFill;
+    ws.getCell(`B${tr}`).font=hdrFont; ws.getCell(`B${tr}`).alignment=ctr; ws.getCell(`B${tr}`).border=border;
+    [{col:'G',val:Math.round(tUF*100)/100,fmt:'#,##0.00'},{col:'H',val:tCLP,fmt:'#,##0'}].forEach(({col,val,fmt})=>{
+      const c=ws.getCell(`${col}${tr}`); c.value=val; c.numFmt=fmt;
+      c.fill=hdrFill; c.font=hdrFont; c.alignment=rgt; c.border=border;
+    });
+    ['I','J'].forEach(col=>{ const c=ws.getCell(`${col}${tr}`); c.fill=hdrFill; c.border=border; });
+
+    const br=tr+2; ws.mergeCells(`B${br}:J${br}`);
+    const cfg=DB.config;
+    ws.getCell(`B${br}`).value=`Datos de pago: ${cfg.banco} · RUT ${cfg.rut} · ${cfg.razon} · ${cfg.tipo} ${cfg.cuenta} · Firmante: ${cfg.firmante}`;
+    ws.getCell(`B${br}`).font={name:'Montserrat',size:8,color:{argb:'FF5A6A7E'},italic:true};
+    ws.getCell(`B${br}`).fill={type:'pattern',pattern:'solid',fgColor:{argb:AMBER}};
+    ws.getRow(br).height=15;
+
+    const buf=await wb.xlsx.writeBuffer();
+    const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=url;
+    a.download=`Terrazul - Facturación ${m.label}.xlsx`; a.click(); URL.revokeObjectURL(url);
+    toast('✅ Excel de facturación generado','s');
+  } catch(e){ console.error(e); toast('Error: '+e.message,'e'); }
+}
+
+// ===== EXCEL PRESUPUESTO =====
+async function exportarExcelPresupuesto(){
+  const anio=pptoAnioActual(), d=pptoGetAnio(anio);
+  toast('⏳ Generando Excel con fórmulas...','w');
+  try {
+    const wb=new ExcelJS.Workbook();
+    const NAVY='FF0C0C59',BLANCO='FFFFFFFF',AZUL1='FFCEDFF3',VERDE='FFD4F0E0',
+          ROJO='FFFFE0DD',AMBER='FFFFF0CC',NAVY2='FFE8E8F5',NAVY3='FF293195';
+    const thin={style:'thin',color:{argb:'FFD0D8E8'}};
+    const bdr={top:thin,bottom:thin,left:thin,right:thin};
+    const hF={type:'pattern',pattern:'solid',fgColor:{argb:NAVY}};
+    const hFd={type:'pattern',pattern:'solid',fgColor:{argb:NAVY3}};
+    const hFont={name:'Montserrat',bold:true,color:{argb:BLANCO},size:9};
+    const bFont={name:'Montserrat',size:9};
+    const C={horizontal:'center',vertical:'middle'};
+    const L={horizontal:'left',  vertical:'middle'};
+    const R={horizontal:'right', vertical:'middle'};
+    const M=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+    // Hoja Parámetros: UF en columna C, filas 4-15
+    const UFrow=i=>4+i;   // fila de la UF del mes i en hoja Parámetros
+    const UFref=i=>`Parámetros!C${UFrow(i)}`; // referencia cross-sheet
+
+    // ── helpers comunes ──
+    const style=(c,opts={})=>{
+      if(opts.fill) c.fill=opts.fill;
+      if(opts.font) c.font=opts.font;
+      if(opts.fmt)  c.numFmt=opts.fmt;
+      c.alignment=opts.align||R;
+      c.border=bdr;
+    };
+    const colM =i=>String.fromCharCode(67+i);   // C..N  (1 col fija: etiqueta)
+    const colMI=i=>String.fromCharCode(68+i);   // D..O  (2 cols fijas: etiqueta+tarifa)
+
+    // ══════════════════════════════════════════════════
+    // HOJA 2: PARÁMETROS  (se crea primero para que las refs sean válidas)
+    // ══════════════════════════════════════════════════
+    const wsP=wb.addWorksheet('Parámetros');
+    wsP.views=[{showGridLines:false}];
+    wsP.getColumn('A').width=3; wsP.getColumn('B').width=16;
+    wsP.getColumn('C').width=16; wsP.getColumn('D').width=26;
+    wsP.mergeCells('B1:D1');
+    wsP.getCell('B1').value=`PARÁMETROS — VALOR UF MENSUAL ${anio}`;
+    wsP.getCell('B1').font={name:'Montserrat',bold:true,color:{argb:NAVY},size:11};
+    wsP.getCell('B1').alignment=L; wsP.getRow(1).height=22; wsP.getRow(2).height=8;
+    [{col:'B',l:'MES'},{col:'C',l:'VALOR UF'},{col:'D',l:'FUENTE / REFERENCIA'}].forEach(({col,l})=>{
+      const c=wsP.getCell(`${col}3`); c.value=l; c.fill=hF; c.font=hFont;
+      c.alignment=col==='B'?L:C; c.border=bdr;
+    });
+    wsP.getRow(3).height=20;
+    M.forEach((mes,i)=>{
+      const rr=UFrow(i); wsP.getRow(rr).height=17;
+      const rf={type:'pattern',pattern:'solid',fgColor:{argb:i%2===0?AZUL1:BLANCO}};
+      // B: mes (texto), C: valor UF (input azul editable), D: fuente
+      wsP.getCell(`B${rr}`).value=mes;
+      style(wsP.getCell(`B${rr}`),{fill:rf,font:bFont,align:L});
+      wsP.getCell(`C${rr}`).value=d.uf[i]||0;
+      wsP.getCell(`C${rr}`).numFmt='#,##0.00';
+      wsP.getCell(`C${rr}`).font={name:'Montserrat',size:9,color:{argb:'FF1A5FA8'},bold:true};
+      wsP.getCell(`C${rr}`).fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF0F4FF'}};
+      wsP.getCell(`C${rr}`).alignment=C; wsP.getCell(`C${rr}`).border=bdr;
+      wsP.getCell(`D${rr}`).value='CMF Chile / Banco Central';
+      style(wsP.getCell(`D${rr}`),{fill:rf,font:{...bFont,color:{argb:'FF9BA8BA'}},align:L});
+    });
+    // Nota al pie
+    const npR=UFrow(12); wsP.mergeCells(`B${npR}:D${npR}`);
+    wsP.getCell(`B${npR}`).value='💡 Edita los valores UF en azul. Las hojas Ingresos y Resumen se actualizan automáticamente.';
+    wsP.getCell(`B${npR}`).font={name:'Montserrat',size:8,color:{argb:'FFC07A00'},italic:true};
+    wsP.getCell(`B${npR}`).fill={type:'pattern',pattern:'solid',fgColor:{argb:AMBER}};
+    wsP.getRow(npR).height=14;
+
+    // ══════════════════════════════════════════════════
+    // HOJA 3: INGRESOS
+    // ══════════════════════════════════════════════════
+    const wsI=wb.addWorksheet('Ingresos');
+    wsI.views=[{showGridLines:false}];
+    wsI.getColumn('A').width=3; wsI.getColumn('B').width=34; wsI.getColumn('C').width=11;
+    M.forEach((_,i)=>{ wsI.getColumn(colMI(i)).width=12; });
+    wsI.getColumn('P').width=14;
+    wsI.mergeCells('B1:P1');
+    wsI.getCell('B1').value=`PRESUPUESTO DE INGRESOS ${anio}`;
+    wsI.getCell('B1').font={name:'Montserrat',bold:true,color:{argb:NAVY},size:11};
+    wsI.getCell('B1').alignment=L; wsI.getRow(1).height=22; wsI.getRow(2).height=8;
+    // Fila 3: UF del mes (referencia a Parámetros) — fila auxiliar
+    wsI.getRow(3).height=14;
+    wsI.getCell('B3').value='VALOR UF DEL MES (CLP)';
+    wsI.getCell('B3').font={name:'Montserrat',size:8,color:{argb:'FF9BA8BA'}};
+    wsI.getCell('B3').alignment=L;
+    M.forEach((_,i)=>{
+      const c=wsI.getCell(`${colMI(i)}3`);
+      c.value={formula:`${UFref(i)}`}; c.numFmt='#,##0.00';
+      c.font={name:'Montserrat',size:8,color:{argb:'FF9BA8BA'}}; c.alignment=C;
+    });
+    // Fila 4: headers
+    wsI.getRow(4).height=20;
+    [{col:'B',l:'CLIENTE / SERVICIO'},{col:'C',l:'TARIFA UF'},
+     ...M.map((m,i)=>({col:colMI(i),l:m})),{col:'P',l:'TOTAL ANUAL'}
+    ].forEach(({col,l})=>{
+      const c=wsI.getCell(`${col}4`); c.value=l; c.fill=hF; c.font=hFont;
+      c.alignment=col==='B'?L:C; c.border=bdr;
+    });
+
+    // Filas de datos: 5..5+n-1
+    const ingBase=5;
+    d.ingresos.forEach((row,ri)=>{
+      const rr=ingBase+ri; wsI.getRow(rr).height=17;
+      const rf={type:'pattern',pattern:'solid',fgColor:{argb:ri%2===0?AZUL1:BLANCO}};
+      const tipo=row.tipo==='variable'?'clp':(row.tipo==='fijo'?'uf':row.tipo||'uf');
+
+      wsI.getCell(`B${rr}`).value=row.nombre;
+      style(wsI.getCell(`B${rr}`),{fill:rf,font:bFont,align:L});
+
+      const tarifa=parseFloat(row.tarifa)||0;
+      if(tipo!=='clp'){
+        wsI.getCell(`C${rr}`).value=tarifa;
+        wsI.getCell(`C${rr}`).numFmt='#,##0.00##';
+        wsI.getCell(`C${rr}`).font={...bFont,color:{argb:'FF1A5FA8'},bold:true};
+        wsI.getCell(`C${rr}`).fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF0F4FF'}};
+        wsI.getCell(`C${rr}`).alignment=C; wsI.getCell(`C${rr}`).border=bdr;
+      } else {
+        wsI.getCell(`C${rr}`).value='CLP';
+        style(wsI.getCell(`C${rr}`),{fill:rf,font:{...bFont,color:{argb:'FF9BA8BA'}},align:C});
+      }
+
+      M.forEach((_,mi)=>{
+        const col=colMI(mi);
+        const c=wsI.getCell(`${col}${rr}`);
+        const activo=pptoMesActivo(row,mi,anio);
+        if(!activo){
+          c.value=null; style(c,{fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FFFAFAFA'}},font:{...bFont,color:{argb:'FFCCCCCC'}}});
+        } else if(tipo==='clp'){
+          // CLP directo: valor editable (input azul)
+          const v=row.valores?.[mi]||null;
+          c.value=v||null; c.numFmt='#,##0';
+          c.font={...bFont,color:{argb:'FF1A5FA8'}}; c.fill=rf; c.alignment=R; c.border=bdr;
+        } else {
+          // UF × UF mes: fórmula = tarifa(C) × UF del mes(fila 3)
+          c.value={formula:`ROUND(C${rr}*${colMI(mi)}3,0)`};
+          c.numFmt='#,##0'; style(c,{fill:rf,font:bFont});
+        }
+      });
+      // Total anual: suma de los 12 meses
+      const firstCol=colMI(0), lastCol=colMI(11);
+      wsI.getCell(`P${rr}`).value={formula:`SUM(${firstCol}${rr}:${lastCol}${rr})`};
+      wsI.getCell(`P${rr}`).numFmt='#,##0';
+      wsI.getCell(`P${rr}`).font={...bFont,bold:true};
+      wsI.getCell(`P${rr}`).fill={type:'pattern',pattern:'solid',fgColor:{argb:NAVY2}};
+      wsI.getCell(`P${rr}`).alignment=R; wsI.getCell(`P${rr}`).border=bdr;
+    });
+
+    // Fila total ingresos
+    const ingTotal=ingBase+d.ingresos.length; wsI.getRow(ingTotal).height=20;
+    wsI.mergeCells(`B${ingTotal}:C${ingTotal}`);
+    style(wsI.getCell(`B${ingTotal}`),{fill:hF,font:hFont,align:L});
+    wsI.getCell(`B${ingTotal}`).value='TOTAL INGRESOS';
+    M.forEach((_,mi)=>{
+      const col=colMI(mi);
+      const c=wsI.getCell(`${col}${ingTotal}`);
+      c.value={formula:`SUM(${col}${ingBase}:${col}${ingTotal-1})`};
+      c.numFmt='#,##0'; style(c,{fill:hF,font:hFont});
+    });
+    wsI.getCell(`P${ingTotal}`).value={formula:`SUM(P${ingBase}:P${ingTotal-1})`};
+    wsI.getCell(`P${ingTotal}`).numFmt='#,##0';
+    style(wsI.getCell(`P${ingTotal}`),{fill:hF,font:hFont});
+
+    // ══════════════════════════════════════════════════
+    // HOJA 4: GASTOS
+    // ══════════════════════════════════════════════════
+    const wsG=wb.addWorksheet('Gastos');
+    wsG.views=[{showGridLines:false}];
+    wsG.getColumn('A').width=3; wsG.getColumn('B').width=26; wsG.getColumn('C').width=30;
+    M.forEach((_,i)=>{ wsG.getColumn(colMI(i)).width=12; });
+    wsG.getColumn('P').width=14;
+    wsG.mergeCells('B1:P1');
+    wsG.getCell('B1').value=`PRESUPUESTO DE GASTOS ${anio}`;
+    wsG.getCell('B1').font={name:'Montserrat',bold:true,color:{argb:NAVY},size:11};
+    wsG.getCell('B1').alignment=L; wsG.getRow(1).height=22; wsG.getRow(2).height=8;
+    [{col:'B',l:'CATEGORÍA'},{col:'C',l:'CONCEPTO / DETALLE'},
+     ...M.map((m,i)=>({col:colMI(i),l:m})),{col:'P',l:'TOTAL ANUAL'}
+    ].forEach(({col,l})=>{
+      const c=wsG.getCell(`${col}3`); c.value=l; c.fill=hF; c.font=hFont;
+      c.alignment=col==='B'||col==='C'?L:C; c.border=bdr;
+    });
+    wsG.getRow(3).height=20;
+
+    // Recorrer gastos agrupando por categoría, recordando filas para subtotales
+    let rg=4, catActual=null;
+    const catRanges={}; // {cat: {start, end}}
+
+    d.gastos.forEach((g,gi)=>{
+      const cat=g.categoria, catS=cat.replace(/^\d+\. /,'');
+      if(cat!==catActual){
+        catActual=cat;
+        wsG.getRow(rg).height=15; wsG.mergeCells(`B${rg}:P${rg}`);
+        wsG.getCell(`B${rg}`).value=catS.toUpperCase();
+        wsG.getCell(`B${rg}`).fill={type:'pattern',pattern:'solid',fgColor:{argb:NAVY3}};
+        wsG.getCell(`B${rg}`).font={name:'Montserrat',bold:true,color:{argb:BLANCO},size:8};
+        wsG.getCell(`B${rg}`).alignment=L; wsG.getCell(`B${rg}`).border=bdr;
+        catRanges[cat]={start:rg+1};
+        rg++;
+      }
+      wsG.getRow(rg).height=17;
+      const rf={type:'pattern',pattern:'solid',fgColor:{argb:gi%2===0?AZUL1:BLANCO}};
+      wsG.getCell(`B${rg}`).value=catS;
+      style(wsG.getCell(`B${rg}`),{fill:rf,font:{...bFont,color:{argb:'FF9BA8BA'}},align:L});
+      wsG.getCell(`C${rg}`).value=g.concepto;
+      style(wsG.getCell(`C${rg}`),{fill:rf,font:bFont,align:L});
+      M.forEach((_,mi)=>{
+        const c=wsG.getCell(`${colMI(mi)}${rg}`);
+        c.value=parseFloat(g.valores[mi])||null; c.numFmt='#,##0';
+        // Valor editable en azul
+        c.font={...bFont,color:{argb:'FF1A5FA8'}}; c.fill=rf; c.alignment=R; c.border=bdr;
+      });
+      // Total fila = fórmula suma
+      wsG.getCell(`P${rg}`).value={formula:`SUM(${colMI(0)}${rg}:${colMI(11)}${rg})`};
+      wsG.getCell(`P${rg}`).numFmt='#,##0';
+      wsG.getCell(`P${rg}`).font={...bFont,bold:true};
+      wsG.getCell(`P${rg}`).fill={type:'pattern',pattern:'solid',fgColor:{argb:NAVY2}};
+      wsG.getCell(`P${rg}`).alignment=R; wsG.getCell(`P${rg}`).border=bdr;
+      catRanges[cat].end=rg;
+      rg++;
+    });
+
+    // Subtotales por categoría
+    const subtotalRows={}; // {cat: fila del subtotal}
+    Object.entries(catRanges).forEach(([cat,{start,end}])=>{
+      const catS=cat.replace(/^\d+\. /,'');
+      wsG.getRow(rg).height=18;
+      wsG.mergeCells(`B${rg}:C${rg}`);
+      wsG.getCell(`B${rg}`).value='SUBTOTAL '+catS.toUpperCase();
+      style(wsG.getCell(`B${rg}`),{fill:hF,font:hFont,align:L});
+      M.forEach((_,mi)=>{
+        const col=colMI(mi);
+        const c=wsG.getCell(`${col}${rg}`);
+        c.value={formula:`SUM(${col}${start}:${col}${end})`};
+        c.numFmt='#,##0'; style(c,{fill:hF,font:hFont});
+      });
+      wsG.getCell(`P${rg}`).value={formula:`SUM(P${start}:P${end})`};
+      wsG.getCell(`P${rg}`).numFmt='#,##0'; style(wsG.getCell(`P${rg}`),{fill:hF,font:hFont});
+      subtotalRows[cat]=rg; rg++;
+    });
+
+    // TOTAL GASTOS = suma de subtotales
+    wsG.getRow(rg).height=20; wsG.mergeCells(`B${rg}:C${rg}`);
+    wsG.getCell(`B${rg}`).value='TOTAL GASTOS';
+    style(wsG.getCell(`B${rg}`),{fill:hF,font:{...hFont,size:10},align:L});
+    const subtRows=Object.values(subtotalRows);
+    M.forEach((_,mi)=>{
+      const col=colMI(mi), c=wsG.getCell(`${col}${rg}`);
+      const sumFormula=subtRows.map(sr=>`${col}${sr}`).join('+');
+      c.value={formula:sumFormula||'0'}; c.numFmt='#,##0';
+      style(c,{fill:hF,font:{...hFont,size:10}});
+    });
+    const gastTotal=rg;
+    const pSumFormula=subtRows.map(sr=>`P${sr}`).join('+');
+    wsG.getCell(`P${rg}`).value={formula:pSumFormula||'0'};
+    wsG.getCell(`P${rg}`).numFmt='#,##0'; style(wsG.getCell(`P${rg}`),{fill:hF,font:{...hFont,size:10}});
+
+    // ══════════════════════════════════════════════════
+    // HOJA 1: PRESUPUESTO DE CAJA — referencias a las otras hojas
+    // ══════════════════════════════════════════════════
+    const ws=wb.addWorksheet('Presupuesto de Caja',{state:'visible'});
+    // Mover al inicio (índice 0)
+    wb.worksheets.splice(0,0,wb.worksheets.pop());
+    ws.views=[{showGridLines:false}];
+    ws.getColumn('A').width=3; ws.getColumn('B').width=34;
+    M.forEach((_,i)=>{ ws.getColumn(colM(i)).width=13; });
+    ws.getColumn('O').width=14;
+
+    let r=1;
+    ws.mergeCells(`B${r}:O${r}`);
+    ws.getCell(`B${r}`).value=`PRESUPUESTO DE CAJA ${anio} — TERRAZUL ASESORÍAS LIMITADA`;
+    ws.getCell(`B${r}`).font={name:'Montserrat',bold:true,color:{argb:NAVY},size:12};
+    ws.getCell(`B${r}`).alignment=L; ws.getRow(r).height=24; r++;
+    ws.mergeCells(`B${r}:O${r}`);
+    ws.getCell(`B${r}`).value=`Control mensual de ingresos, egresos, superávit / déficit de caja mensual y acumulado  |  Año ${anio}`;
+    ws.getCell(`B${r}`).font={name:'Montserrat',size:8,color:{argb:'FF5A6A7E'}};
+    ws.getRow(r).height=14; r++;
+    ws.getRow(r).height=8; r++;
+
+    // Header meses
+    ws.getRow(r).height=20;
+    ['B',...M.map((_,i)=>colM(i)),'O'].forEach((col,ci)=>{
+      const c=ws.getCell(`${col}${r}`);
+      c.value=ci===0?'CONCEPTO':ci===13?'TOTAL AÑO':M[ci-1];
+      c.fill=ci===13?{type:'pattern',pattern:'solid',fgColor:{argb:'FF1A3A8A'}}:hF;
+      c.font=hFont; c.alignment=ci===0?L:C; c.border=bdr;
+    }); r++;
+
+    // ─ INGRESOS ─
+    ws.getRow(r).height=16; ws.mergeCells(`B${r}:O${r}`);
+    ws.getCell(`B${r}`).value='▶  INGRESOS';
+    ws.getCell(`B${r}`).fill=hF; ws.getCell(`B${r}`).font=hFont;
+    ws.getCell(`B${r}`).alignment=L; ws.getCell(`B${r}`).border=bdr; r++;
+
+    // Una fila por ingreso referenciando hoja Ingresos
+    const ingFirstR=r;
+    d.ingresos.forEach((row,ri)=>{
+      const ingSheetRow=ingBase+ri;
+      ws.getRow(r).height=17;
+      const rf={type:'pattern',pattern:'solid',fgColor:{argb:ri%2===0?AZUL1:BLANCO}};
+      ws.getCell(`B${r}`).value='  '+row.nombre;
+      style(ws.getCell(`B${r}`),{fill:rf,font:bFont,align:L});
+      M.forEach((_,mi)=>{
+        const col=colM(mi), c=ws.getCell(`${col}${r}`);
+        c.value={formula:`Ingresos!${colMI(mi)}${ingSheetRow}`};
+        c.numFmt='#,##0'; style(c,{fill:rf,font:bFont});
+      });
+      ws.getCell(`O${r}`).value={formula:`Ingresos!P${ingSheetRow}`};
+      ws.getCell(`O${r}`).numFmt='#,##0';
+      style(ws.getCell(`O${r}`),{fill:{type:'pattern',pattern:'solid',fgColor:{argb:NAVY2}},font:{...bFont,bold:true}});
+      r++;
+    });
+
+    // Total ingresos
+    const ingTotalR=r; ws.getRow(r).height=19;
+    ws.getCell(`B${r}`).value='TOTAL INGRESOS';
+    style(ws.getCell(`B${r}`),{fill:{type:'pattern',pattern:'solid',fgColor:{argb:NAVY2}},font:{...bFont,bold:true,color:{argb:NAVY}},align:L});
+    M.forEach((_,mi)=>{
+      const col=colM(mi), c=ws.getCell(`${col}${r}`);
+      c.value={formula:`Ingresos!${colMI(mi)}${ingTotal}`};
+      c.numFmt='#,##0'; style(c,{fill:{type:'pattern',pattern:'solid',fgColor:{argb:NAVY2}},font:{...bFont,bold:true,color:{argb:NAVY}}});
+    });
+    ws.getCell(`O${r}`).value={formula:`Ingresos!P${ingTotal}`};
+    ws.getCell(`O${r}`).numFmt='#,##0';
+    style(ws.getCell(`O${r}`),{fill:{type:'pattern',pattern:'solid',fgColor:{argb:NAVY2}},font:{...bFont,bold:true,color:{argb:NAVY}}});
+    r++;
+
+    // ─ EGRESOS ─
+    ws.getRow(r).height=16; ws.mergeCells(`B${r}:O${r}`);
+    ws.getCell(`B${r}`).value='▶  EGRESOS';
+    ws.getCell(`B${r}`).fill=hF; ws.getCell(`B${r}`).font=hFont;
+    ws.getCell(`B${r}`).alignment=L; ws.getCell(`B${r}`).border=bdr; r++;
+
+    // Una fila por categoría referenciando subtotales de Gastos
+    Object.entries(subtotalRows).forEach(([cat,gRow],ci)=>{
+      const catS=cat.replace(/^\d+\. /,'');
+      ws.getRow(r).height=17;
+      const rf={type:'pattern',pattern:'solid',fgColor:{argb:ci%2===0?AZUL1:BLANCO}};
+      ws.getCell(`B${r}`).value='  '+catS;
+      style(ws.getCell(`B${r}`),{fill:rf,font:bFont,align:L});
+      M.forEach((_,mi)=>{
+        const col=colM(mi), c=ws.getCell(`${col}${r}`);
+        c.value={formula:`Gastos!${colMI(mi)}${gRow}`};
+        c.numFmt='#,##0'; style(c,{fill:rf,font:bFont});
+      });
+      ws.getCell(`O${r}`).value={formula:`Gastos!P${gRow}`};
+      ws.getCell(`O${r}`).numFmt='#,##0';
+      style(ws.getCell(`O${r}`),{fill:{type:'pattern',pattern:'solid',fgColor:{argb:NAVY2}},font:{...bFont,bold:true}});
+      r++;
+    });
+
+    // Total egresos
+    const egrTotalR=r; ws.getRow(r).height=19;
+    ws.getCell(`B${r}`).value='TOTAL EGRESOS';
+    style(ws.getCell(`B${r}`),{fill:{type:'pattern',pattern:'solid',fgColor:{argb:NAVY2}},font:{...bFont,bold:true,color:{argb:NAVY}},align:L});
+    M.forEach((_,mi)=>{
+      const col=colM(mi), c=ws.getCell(`${col}${r}`);
+      c.value={formula:`Gastos!${colMI(mi)}${gastTotal}`};
+      c.numFmt='#,##0'; style(c,{fill:{type:'pattern',pattern:'solid',fgColor:{argb:NAVY2}},font:{...bFont,bold:true,color:{argb:NAVY}}});
+    });
+    ws.getCell(`O${r}`).value={formula:`Gastos!P${gastTotal}`};
+    ws.getCell(`O${r}`).numFmt='#,##0';
+    style(ws.getCell(`O${r}`),{fill:{type:'pattern',pattern:'solid',fgColor:{argb:NAVY2}},font:{...bFont,bold:true,color:{argb:NAVY}}});
+    r++;
+
+    // ─ RESULTADO ─
+    ws.getRow(r).height=16; ws.mergeCells(`B${r}:O${r}`);
+    ws.getCell(`B${r}`).value='▶  RESULTADO DE CAJA';
+    ws.getCell(`B${r}`).fill=hF; ws.getCell(`B${r}`).font=hFont;
+    ws.getCell(`B${r}`).alignment=L; ws.getCell(`B${r}`).border=bdr; r++;
+
+    // Superávit/déficit mensual
+    const supR=r; ws.getRow(r).height=18;
+    ws.getCell(`B${r}`).value='SUPERÁVIT / DÉFICIT MENSUAL';
+    style(ws.getCell(`B${r}`),{fill:{type:'pattern',pattern:'solid',fgColor:{argb:VERDE}},font:{...bFont,bold:true,color:{argb:'FF1E7E47'}},align:L});
+    M.forEach((_,mi)=>{
+      const col=colM(mi), c=ws.getCell(`${col}${r}`);
+      c.value={formula:`${col}${ingTotalR}-${col}${egrTotalR}`};
+      c.numFmt='#,##0';
+      c.font={...bFont,bold:true}; c.border=bdr; c.alignment=R;
+      c.fill={type:'pattern',pattern:'solid',fgColor:{argb:VERDE}};
+    });
+    ws.getCell(`O${r}`).value={formula:`O${ingTotalR}-O${egrTotalR}`};
+    ws.getCell(`O${r}`).numFmt='#,##0';
+    style(ws.getCell(`O${r}`),{fill:{type:'pattern',pattern:'solid',fgColor:{argb:VERDE}},font:{...bFont,bold:true,color:{argb:'FF1E7E47'}}});
+    r++;
+
+    // Superávit acumulado
+    const acumR=r; ws.getRow(r).height=18;
+    ws.getCell(`B${r}`).value='SUPERÁVIT / DÉFICIT ACUMULADO';
+    style(ws.getCell(`B${r}`),{fill:{type:'pattern',pattern:'solid',fgColor:{argb:NAVY2}},font:{...bFont,bold:true,color:{argb:NAVY}},align:L});
+    M.forEach((_,mi)=>{
+      const col=colM(mi), c=ws.getCell(`${col}${r}`);
+      // Acumulado: sumar desde la primera columna de superávit hasta esta
+      const rangeEnd=col, rangeStart=colM(0);
+      c.value={formula:`SUM(${rangeStart}${supR}:${rangeEnd}${supR})`};
+      c.numFmt='#,##0';
+      style(c,{fill:{type:'pattern',pattern:'solid',fgColor:{argb:NAVY2}},font:{...bFont,bold:true,color:{argb:NAVY}}});
+    });
+    ws.getCell(`O${r}`).value={formula:`O${supR}`}; // el acumulado final = total del año
+    ws.getCell(`O${r}`).numFmt='#,##0';
+    style(ws.getCell(`O${r}`),{fill:{type:'pattern',pattern:'solid',fgColor:{argb:NAVY2}},font:{...bFont,bold:true,color:{argb:NAVY}}});
+    r++;
+
+    // Margen de utilidad
+    ws.getRow(r).height=17;
+    ws.getCell(`B${r}`).value='Margen de utilidad mensual (%)';
+    style(ws.getCell(`B${r}`),{fill:{type:'pattern',pattern:'solid',fgColor:{argb:AMBER}},font:{...bFont,color:{argb:'FFC07A00'}},align:L});
+    M.forEach((_,mi)=>{
+      const col=colM(mi), c=ws.getCell(`${col}${r}`);
+      c.value={formula:`IF(${col}${ingTotalR}=0,0,${col}${supR}/${col}${ingTotalR})`};
+      c.numFmt='0.0%';
+      style(c,{fill:{type:'pattern',pattern:'solid',fgColor:{argb:AMBER}},font:{...bFont,color:{argb:'FFC07A00'}}});
+    });
+    ws.getCell(`O${r}`).value={formula:`IF(O${ingTotalR}=0,0,O${supR}/O${ingTotalR})`};
+    ws.getCell(`O${r}`).numFmt='0.0%';
+    style(ws.getCell(`O${r}`),{fill:{type:'pattern',pattern:'solid',fgColor:{argb:AMBER}},font:{...bFont,color:{argb:'FFC07A00'}}});
+    r++;
+
+    // Leyenda al pie
+    r++;
+    const leyendas=[
+      {color:'FF1A5FA8',txt:'Texto AZUL = input editable (tarifa UF o monto CLP) — modificar directamente'},
+      {color:'FF1E7E47',txt:'Fondo VERDE = superávit / resultado positivo de caja'},
+      {color:'FFC0392B',txt:'Fondo ROSADO = déficit / resultado negativo'},
+      {color:'FFC07A00',txt:'Fondo DORADO = supuesto / parámetro clave — editar en hoja Parámetros'},
+    ];
+    leyendas.forEach(({color,txt})=>{
+      ws.mergeCells(`B${r}:O${r}`);
+      ws.getCell(`B${r}`).value='  ■  '+txt;
+      ws.getCell(`B${r}`).font={name:'Montserrat',size:8,color:{argb:color}};
+      ws.getRow(r).height=13; r++;
+    });
+
+    // Exportar
+    const buf=await wb.xlsx.writeBuffer();
+    const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=url;
+    a.download=`Terrazul - Presupuesto ${anio}.xlsx`; a.click(); URL.revokeObjectURL(url);
+    toast('✅ Excel generado con fórmulas (4 hojas)','s');
+  } catch(e){ console.error(e); toast('Error: '+e.message,'e'); }
+}
+
 document.addEventListener('DOMContentLoaded', async ()=>{
   checkAuth();
   // Registrar Service Worker para PWA
@@ -2632,6 +4211,8 @@ document.addEventListener('DOMContentLoaded', async ()=>{
   // Cargar datos desde Sheets (si hay sesión activa)
   if(sessionStorage.getItem('trzl_auth')){
     await cargarDesdeSheets();
+    await cargarUsuariosSheet();
+    aplicarPermisos();
   }
   renderDashboard();
 });
