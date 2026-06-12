@@ -135,7 +135,10 @@ td{padding:9px 12px;color:var(--navy);vertical-align:middle}
 .login-title{font-family:var(--fd);font-size:22px;color:var(--navy);margin-bottom:6px}
 .login-sub{font-size:12px;color:var(--gray-400);margin-bottom:24px}
 .login-error{font-size:12px;color:var(--red);margin-top:8px;display:none}
-/* ===== PRESUPUESTO ===== */
+.dd-item{padding:9px 14px;font-size:12px;cursor:pointer;color:var(--navy);font-family:var(--fb);white-space:nowrap;border-bottom:1px solid var(--gray-100)}
+.dd-item:last-child{border-bottom:none}
+.dd-item:hover{background:var(--gray-100)}
+
 .ppto-tab-btn{display:inline-flex;align-items:center;gap:5px;padding:6px 13px;border-radius:var(--rs);font-size:12px;font-weight:500;cursor:pointer;border:1.5px solid var(--gray-200);background:#fff;color:var(--gray-600);transition:all .15s;white-space:nowrap}
 .ppto-tab-btn:hover{border-color:#2A9D8F;color:#2A9D8F}
 .ppto-tab-btn.active{background:#2A9D8F;border-color:#2A9D8F;color:#fff}
@@ -488,6 +491,30 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-secondary btn-sm" onclick="pptoNuevoAnio()">＋ Nuevo año</button>
+
+        <!-- Dropdown Plantillas -->
+        <div style="position:relative;display:inline-block" id="dd-plantillas">
+          <button class="btn btn-secondary btn-sm" onclick="pptoToggleDD('dd-plantillas')">📋 Plantillas ▾</button>
+          <div id="dd-plantillas-menu" style="display:none;position:absolute;top:calc(100% + 4px);left:0;background:#fff;border:1px solid var(--gray-200);border-radius:var(--rs);box-shadow:0 4px 12px rgba(0,0,0,0.1);z-index:100;min-width:160px;overflow:hidden">
+            <div class="dd-item" onclick="pptoDescargarPlantilla('uf');pptoCloseDD()">💱 Plantilla UF</div>
+            <div class="dd-item" onclick="pptoDescargarPlantilla('ingresos');pptoCloseDD()">📥 Plantilla Ingresos</div>
+            <div class="dd-item" onclick="pptoDescargarPlantilla('gastos');pptoCloseDD()">📤 Plantilla Gastos</div>
+          </div>
+        </div>
+
+        <!-- Dropdown Importar -->
+        <div style="position:relative;display:inline-block" id="dd-importar">
+          <button class="btn btn-secondary btn-sm" onclick="pptoToggleDD('dd-importar')">📂 Importar ▾</button>
+          <div id="dd-importar-menu" style="display:none;position:absolute;top:calc(100% + 4px);left:0;background:#fff;border:1px solid var(--gray-200);border-radius:var(--rs);box-shadow:0 4px 12px rgba(0,0,0,0.1);z-index:100;min-width:160px;overflow:hidden">
+            <div class="dd-item" onclick="document.getElementById('ppto-import-uf').click();pptoCloseDD()">💱 Importar UF</div>
+            <div class="dd-item" onclick="document.getElementById('ppto-import-ing').click();pptoCloseDD()">📥 Importar Ingresos</div>
+            <div class="dd-item" onclick="document.getElementById('ppto-import-gto').click();pptoCloseDD()">📤 Importar Gastos</div>
+          </div>
+        </div>
+        <input type="file" id="ppto-import-uf"  accept=".xlsx" style="display:none" onchange="pptoImportarExcel(this,'uf')">
+        <input type="file" id="ppto-import-ing" accept=".xlsx" style="display:none" onchange="pptoImportarExcel(this,'ingresos')">
+        <input type="file" id="ppto-import-gto" accept=".xlsx" style="display:none" onchange="pptoImportarExcel(this,'gastos')">
+
         <button class="btn btn-secondary btn-sm" onclick="exportarExcelPresupuesto()">📥 Exportar Excel</button>
         <button class="btn btn-primary btn-sm" onclick="pptoGuardar()">💾 Guardar</button>
       </div>
@@ -3032,6 +3059,22 @@ async function subirPDF(filaIdx, inputEl){
 
 // ===== PRESUPUESTO DE CAJA =====
 
+function pptoToggleDD(id){
+  const menu = document.getElementById(id+'-menu');
+  const isOpen = menu.style.display !== 'none';
+  pptoCloseDD();
+  if(!isOpen) menu.style.display = 'block';
+}
+function pptoCloseDD(){
+  document.querySelectorAll('[id$="-menu"]').forEach(m=>{
+    if(m.id.startsWith('dd-')) m.style.display='none';
+  });
+}
+// Cerrar dropdowns al hacer clic fuera
+document.addEventListener('click', e=>{
+  if(!e.target.closest('#dd-plantillas') && !e.target.closest('#dd-importar')) pptoCloseDD();
+});
+
 const PPTO_MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 const PPTO_CATEGORIAS_GASTO = [
   '1. Nómina y Honorarios',
@@ -4461,6 +4504,263 @@ async function exportarExcelPresupuesto(){
     a.download=`Terrazul - Presupuesto ${anio}.xlsx`; a.click(); URL.revokeObjectURL(url);
     toast('✅ Excel generado con fórmulas (4 hojas)','s');
   } catch(e){ console.error(e); toast('Error: '+e.message,'e'); }
+}
+
+// ===== PLANTILLA E IMPORTACIÓN PRESUPUESTO =====
+
+async function pptoDescargarPlantilla(seccion){
+  const anio = pptoAnioActual();
+  const d = pptoGetAnio(anio);
+  toast('⏳ Generando plantilla...','w');
+  try {
+    const wb = new ExcelJS.Workbook();
+    const NAVY='FF0C0C59',BLANCO='FFFFFFFF',AZUL='FFCEDFF3',AMBER='FFFFF0CC';
+    const hF={type:'pattern',pattern:'solid',fgColor:{argb:NAVY}};
+    const inputFill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF0F4FF'}};
+    const hFont={name:'Montserrat',bold:true,color:{argb:BLANCO},size:9};
+    const inputFont={name:'Montserrat',size:9,color:{argb:'FF1A5FA8'},bold:true};
+    const bFont={name:'Montserrat',size:9};
+    const thin={style:'thin',color:{argb:'FFD0D8E8'}};
+    const bdr={top:thin,bottom:thin,left:thin,right:thin};
+    const L={horizontal:'left',vertical:'middle'};
+    const C={horizontal:'center',vertical:'middle'};
+    const M=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+    if(seccion==='uf'){
+      const ws = wb.addWorksheet('Parámetros UF');
+      ws.views=[{showGridLines:false}];
+      ws.getColumn('A').width=3; ws.getColumn('B').width=18; ws.getColumn('C').width=18;
+      ws.mergeCells('B1:C1');
+      ws.getCell('B1').value=`VALOR UF MENSUAL — ${anio}`;
+      ws.getCell('B1').font={name:'Montserrat',bold:true,color:{argb:NAVY},size:11};
+      ws.getCell('B1').alignment=L; ws.getRow(1).height=22;
+      ws.mergeCells('B2:C2');
+      ws.getCell('B2').value='Ingresa el valor UF del día 5 de cada mes. Solo edita la columna VALOR UF (azul).';
+      ws.getCell('B2').font={name:'Montserrat',size:8,color:{argb:'FF5A6A7E'}}; ws.getRow(2).height=14;
+      ws.getRow(3).height=8;
+      ['B','C'].forEach((col,ci)=>{
+        const c=ws.getCell(`${col}4`); c.value=['MES','VALOR UF'][ci];
+        c.fill=hF; c.font=hFont; c.alignment=ci===0?L:C; c.border=bdr;
+      }); ws.getRow(4).height=20;
+      M.forEach((mes,i)=>{
+        const r=5+i; ws.getRow(r).height=18;
+        const rf={type:'pattern',pattern:'solid',fgColor:{argb:i%2===0?AZUL:BLANCO}};
+        ws.getCell(`B${r}`).value=mes; ws.getCell(`B${r}`).font=bFont;
+        ws.getCell(`B${r}`).fill=rf; ws.getCell(`B${r}`).alignment=L; ws.getCell(`B${r}`).border=bdr;
+        ws.getCell(`C${r}`).value=d.uf[i]||0; ws.getCell(`C${r}`).numFmt='#,##0.00';
+        ws.getCell(`C${r}`).font=inputFont; ws.getCell(`C${r}`).fill=inputFill;
+        ws.getCell(`C${r}`).alignment=C; ws.getCell(`C${r}`).border=bdr;
+      });
+      ws.mergeCells('B18:C18');
+      ws.getCell('B18').value='⚠ No cambies el orden ni los nombres de los meses.';
+      ws.getCell('B18').font={name:'Montserrat',size:8,color:{argb:'FFC07A00'},italic:true};
+      ws.getCell('B18').fill={type:'pattern',pattern:'solid',fgColor:{argb:AMBER}};
+      ws.getRow(18).height=14;
+
+    } else if(seccion==='ingresos'){
+      const ws = wb.addWorksheet('Ingresos');
+      ws.views=[{showGridLines:false}];
+      ws.getColumn('A').width=3; ws.getColumn('B').width=34;
+      ws.getColumn('C').width=11; ws.getColumn('D').width=11;
+      M.forEach((_,i)=>{ ws.getColumn(String.fromCharCode(69+i)).width=12; });
+      ws.getColumn('Q').width=10;
+      ws.mergeCells('B1:Q1');
+      ws.getCell('B1').value=`INGRESOS — ${anio}`;
+      ws.getCell('B1').font={name:'Montserrat',bold:true,color:{argb:NAVY},size:11};
+      ws.getCell('B1').alignment=L; ws.getRow(1).height=22;
+      ws.mergeCells('B2:Q2');
+      ws.getCell('B2').value='Tipo "uf" = tarifa × UF del mes (deja meses vacíos)  |  Tipo "clp" = monto CLP por mes (deja tarifa vacía)';
+      ws.getCell('B2').font={name:'Montserrat',size:8,color:{argb:'FF5A6A7E'}}; ws.getRow(2).height=14;
+      ws.getRow(3).height=8;
+      ws.getRow(4).height=20;
+      [{col:'B',l:'NOMBRE / CLIENTE'},{col:'C',l:'TIPO'},{col:'D',l:'TARIFA UF'},
+       ...M.map((m,i)=>({col:String.fromCharCode(69+i),l:m})),{col:'Q',l:'ACTIVO'}
+      ].forEach(({col,l})=>{
+        const c=ws.getCell(`${col}4`); c.value=l; c.fill=hF; c.font=hFont;
+        c.alignment=col==='B'?L:C; c.border=bdr;
+      });
+      d.ingresos.forEach((row,ri)=>{
+        const r=5+ri; ws.getRow(r).height=18;
+        const tipo=(row.tipo==='fijo'||row.tipo==='uf-meses')?'uf':(row.tipo==='variable'?'clp':row.tipo||'uf');
+        ws.getCell(`B${r}`).value=row.nombre; ws.getCell(`B${r}`).font=inputFont;
+        ws.getCell(`B${r}`).fill=inputFill; ws.getCell(`B${r}`).alignment=L; ws.getCell(`B${r}`).border=bdr;
+        ws.getCell(`C${r}`).value=tipo; ws.getCell(`C${r}`).font=inputFont;
+        ws.getCell(`C${r}`).fill=inputFill; ws.getCell(`C${r}`).alignment=C; ws.getCell(`C${r}`).border=bdr;
+        ws.getCell(`D${r}`).value=tipo!=='clp'?(parseFloat(row.tarifa)||0):null;
+        ws.getCell(`D${r}`).font=inputFont; ws.getCell(`D${r}`).fill=inputFill;
+        ws.getCell(`D${r}`).numFmt='#,##0.00##'; ws.getCell(`D${r}`).alignment=C; ws.getCell(`D${r}`).border=bdr;
+        M.forEach((_,mi)=>{
+          const col=String.fromCharCode(69+mi);
+          const v=tipo==='clp'?(row.valores?.[mi]||null):null;
+          ws.getCell(`${col}${r}`).value=v; ws.getCell(`${col}${r}`).numFmt='#,##0';
+          ws.getCell(`${col}${r}`).font=inputFont; ws.getCell(`${col}${r}`).fill=inputFill;
+          ws.getCell(`${col}${r}`).alignment=C; ws.getCell(`${col}${r}`).border=bdr;
+        });
+        ws.getCell(`Q${r}`).value='SI'; ws.getCell(`Q${r}`).font=inputFont;
+        ws.getCell(`Q${r}`).fill=inputFill; ws.getCell(`Q${r}`).alignment=C; ws.getCell(`Q${r}`).border=bdr;
+      });
+      // Filas vacías
+      for(let ri=d.ingresos.length; ri<d.ingresos.length+5; ri++){
+        const r=5+ri; ws.getRow(r).height=18;
+        ['B','C','D',...M.map((_,i)=>String.fromCharCode(69+i)),'Q'].forEach(col=>{
+          ws.getCell(`${col}${r}`).fill=inputFill; ws.getCell(`${col}${r}`).border=bdr;
+          ws.getCell(`${col}${r}`).font=inputFont;
+        });
+        ws.getCell(`C${r}`).value='uf'; ws.getCell(`Q${r}`).value='SI';
+      }
+      const notaR=5+d.ingresos.length+6; ws.mergeCells(`B${notaR}:Q${notaR}`);
+      ws.getCell(`B${notaR}`).value='⚠ Tipo válido: "uf" o "clp". ACTIVO: "SI" o "NO". No cambies el orden de las columnas.';
+      ws.getCell(`B${notaR}`).font={name:'Montserrat',size:8,color:{argb:'FFC07A00'},italic:true};
+      ws.getCell(`B${notaR}`).fill={type:'pattern',pattern:'solid',fgColor:{argb:AMBER}};
+      ws.getRow(notaR).height=14;
+
+    } else if(seccion==='gastos'){
+      const CATS=['1. Nómina y Honorarios','2. Instalaciones','3. Operaciones y Software','4. Comercial','5. Financiero','6. Otros'];
+      const ws = wb.addWorksheet('Gastos');
+      ws.views=[{showGridLines:false}];
+      ws.getColumn('A').width=3; ws.getColumn('B').width=28; ws.getColumn('C').width=32;
+      M.forEach((_,i)=>{ ws.getColumn(String.fromCharCode(68+i)).width=12; });
+      ws.getColumn('P').width=10;
+      ws.mergeCells('B1:P1');
+      ws.getCell('B1').value=`GASTOS — ${anio}`;
+      ws.getCell('B1').font={name:'Montserrat',bold:true,color:{argb:NAVY},size:11};
+      ws.getCell('B1').alignment=L; ws.getRow(1).height=22;
+      ws.mergeCells('B2:P2');
+      ws.getCell('B2').value='Montos en CLP. Categoría debe ser exactamente una de las 6 válidas (ver nota al pie).';
+      ws.getCell('B2').font={name:'Montserrat',size:8,color:{argb:'FF5A6A7E'}}; ws.getRow(2).height=14;
+      ws.getRow(3).height=8; ws.getRow(4).height=20;
+      [{col:'B',l:'CATEGORÍA'},{col:'C',l:'CONCEPTO'},
+       ...M.map((m,i)=>({col:String.fromCharCode(68+i),l:m})),{col:'P',l:'TOTAL'}
+      ].forEach(({col,l})=>{
+        const c=ws.getCell(`${col}4`); c.value=l; c.fill=hF; c.font=hFont;
+        c.alignment=col==='B'||col==='C'?L:C; c.border=bdr;
+      });
+      d.gastos.forEach((g,gi)=>{
+        const r=5+gi; ws.getRow(r).height=18;
+        const rf={type:'pattern',pattern:'solid',fgColor:{argb:gi%2===0?AZUL:BLANCO}};
+        ws.getCell(`B${r}`).value=g.categoria; ws.getCell(`B${r}`).font=inputFont;
+        ws.getCell(`B${r}`).fill=inputFill; ws.getCell(`B${r}`).alignment=L; ws.getCell(`B${r}`).border=bdr;
+        ws.getCell(`C${r}`).value=g.concepto; ws.getCell(`C${r}`).font=inputFont;
+        ws.getCell(`C${r}`).fill=inputFill; ws.getCell(`C${r}`).alignment=L; ws.getCell(`C${r}`).border=bdr;
+        M.forEach((_,mi)=>{
+          const col=String.fromCharCode(68+mi);
+          ws.getCell(`${col}${r}`).value=parseFloat(g.valores[mi])||null;
+          ws.getCell(`${col}${r}`).numFmt='#,##0'; ws.getCell(`${col}${r}`).font=inputFont;
+          ws.getCell(`${col}${r}`).fill=inputFill; ws.getCell(`${col}${r}`).alignment=C; ws.getCell(`${col}${r}`).border=bdr;
+        });
+        const tot=g.valores.reduce((s,v)=>s+(parseFloat(v)||0),0);
+        ws.getCell(`P${r}`).value=tot||null; ws.getCell(`P${r}`).numFmt='#,##0';
+        ws.getCell(`P${r}`).font={...bFont,bold:true}; ws.getCell(`P${r}`).fill=rf;
+        ws.getCell(`P${r}`).alignment=C; ws.getCell(`P${r}`).border=bdr;
+      });
+      for(let gi=d.gastos.length; gi<d.gastos.length+10; gi++){
+        const r=5+gi; ws.getRow(r).height=18;
+        ['B','C',...M.map((_,i)=>String.fromCharCode(68+i)),'P'].forEach(col=>{
+          ws.getCell(`${col}${r}`).fill=inputFill; ws.getCell(`${col}${r}`).border=bdr;
+          ws.getCell(`${col}${r}`).font=inputFont;
+        });
+      }
+      const notaR=5+d.gastos.length+12; ws.mergeCells(`B${notaR}:P${notaR}`);
+      ws.getCell(`B${notaR}`).value='⚠ Categorías válidas: ' + CATS.join('  |  ');
+      ws.getCell(`B${notaR}`).font={name:'Montserrat',size:8,color:{argb:'FFC07A00'},italic:true};
+      ws.getCell(`B${notaR}`).fill={type:'pattern',pattern:'solid',fgColor:{argb:AMBER}};
+      ws.getRow(notaR).height=14;
+    }
+
+    const buf=await wb.xlsx.writeBuffer();
+    const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=url;
+    const nombres={uf:'UF',ingresos:'Ingresos',gastos:'Gastos'};
+    a.download=`Terrazul - Plantilla ${nombres[seccion]} ${anio}.xlsx`; a.click(); URL.revokeObjectURL(url);
+    toast(`✅ Plantilla ${nombres[seccion]} descargada`,'s');
+  } catch(e){ console.error(e); toast('Error: '+e.message,'e'); }
+}
+
+async function pptoImportarExcel(input, seccion){
+  const file = input.files[0];
+  if(!file) return;
+  input.value = '';
+  toast('⏳ Importando '+seccion+'...','w');
+  try {
+    const buf = await file.arrayBuffer();
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(buf);
+    const anio = pptoAnioActual();
+    const d = pptoGetAnio(anio);
+    const M=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+    const parseNum = v => parseFloat(String(v||'0').replace(/\./g,'').replace(',','.'))||0;
+
+    if(seccion==='uf'){
+      // Hoja: Parámetros UF — col B=mes, col C=valor
+      const ws = wb.worksheets[0];
+      const uf = new Array(12).fill(0);
+      for(let i=0; i<12; i++){
+        uf[i] = parseNum(ws.getRow(5+i).getCell(3).value);
+      }
+      d.uf = uf;
+      toast(`✅ UF importada para los 12 meses`,'s');
+
+    } else if(seccion==='ingresos'){
+      // Hoja: Ingresos — B=nombre, C=tipo, D=tarifa, E..P=meses, Q=activo
+      const ws = wb.worksheets[0];
+      const ingresos = [];
+      let r = 5;
+      while(r <= ws.rowCount + 1){
+        const row = ws.getRow(r);
+        const nombre = String(row.getCell(2).value||'').trim();
+        if(!nombre){ r++; if(r > ws.rowCount+5) break; continue; }
+        const tipo = String(row.getCell(3).value||'uf').trim().toLowerCase();
+        const tarifa = parseNum(row.getCell(4).value);
+        const activo = String(row.getCell(17).value||'SI').trim().toUpperCase() !== 'NO';
+        const ing = { nombre, tipo, activo };
+        if(tipo==='uf'){ ing.tarifa = tarifa; }
+        else {
+          ing.valores = Array.from({length:12},(_,mi)=>parseNum(row.getCell(5+mi).value));
+        }
+        const cli = DB.clientes.find(c=>c.razon===nombre||c.clave===nombre);
+        if(cli) ing.clave = cli.clave;
+        ingresos.push(ing);
+        r++;
+      }
+      if(ingresos.length){
+        d.ingresos = ingresos;
+        toast(`✅ ${ingresos.length} líneas de ingresos importadas`,'s');
+      } else {
+        toast('⚠️ No se encontraron datos en el Excel','w');
+      }
+
+    } else if(seccion==='gastos'){
+      // Hoja: Gastos — B=categoria, C=concepto, D..O=meses
+      const ws = wb.worksheets[0];
+      const gastos = [];
+      let r = 5;
+      while(r <= ws.rowCount + 1){
+        const row = ws.getRow(r);
+        const categoria = String(row.getCell(2).value||'').trim();
+        const concepto  = String(row.getCell(3).value||'').trim();
+        if(!categoria && !concepto){ r++; if(r > ws.rowCount+5) break; continue; }
+        if(!categoria){ r++; continue; }
+        const valores = Array.from({length:12},(_,mi)=>parseNum(row.getCell(4+mi).value));
+        gastos.push({ categoria, concepto: concepto||'Sin descripción', valores });
+        r++;
+      }
+      if(gastos.length){
+        d.gastos = gastos;
+        toast(`✅ ${gastos.length} conceptos de gastos importados`,'s');
+      } else {
+        toast('⚠️ No se encontraron datos en el Excel','w');
+      }
+    }
+
+    saveDB();
+    pptoRender(pptoTabActual());
+
+  } catch(e){
+    console.error('pptoImportarExcel:', e);
+    toast('Error al leer el Excel: '+e.message,'e');
+  }
 }
 
 document.addEventListener('DOMContentLoaded', async ()=>{
