@@ -983,14 +983,15 @@ function saveDB(){
 // Guardar historial de facturación en Sheets
 async function saveFacturacionSheets(){
   try {
-    const rows = [['label','mes','anio','uf','clave','rut','razon','empresas','tarifa','totalUf','totalClp','folio','desc','grupo','correoEnviado','pdfUrl']];
+    const rows = [['label','mes','anio','uf','clave','rut','razon','empresas','tarifa','totalUf','totalClp','folio','desc','grupo','correoEnviado','pdfUrl','extra']];
     DB.meses.forEach(m => {
       m.filas.forEach(f => {
         rows.push([
           m.label, m.mes, m.anio, m.uf,
           f.clave||'', f.rut||'', f.razon||'', f.empresas||0,
           f.tarifa||0, f.totalUf||0, f.totalClp||0,
-          f.folio||'', f.desc||'', f.grupo?'SI':'NO', f.correoEnviado?'SI':'NO', f.pdfUrl||''
+          f.folio||'', f.desc||'', f.grupo?'SI':'NO', f.correoEnviado?'SI':'NO', f.pdfUrl||'',
+          f.extra?'SI':'NO'
         ]);
       });
     });
@@ -1099,11 +1100,24 @@ async function cargarDesdeSheets(){
           mesesMap[label] = { label:labelLimpio, mes:mesNum, anio:anioNum, uf:Number(r[3]), filas:[] };
         }
         if(r[4]){ // tiene clave de cliente
+          const claveFila = r[4];
+          // Leer campo extra desde columna 16 si existe, si no usar lógica de fallback
+          let esExtra;
+          if(r.length > 16 && r[16] !== '' && r[16] !== undefined){
+            esExtra = r[16] === 'SI';
+          } else {
+            // Fallback para filas antiguas sin columna extra
+            const esClienteRegistrado = DB.clientes.find(c => c.clave === claveFila);
+            const clavesYaVistas = mesesMap[label].filas.map(f=>f.clave);
+            esExtra = !esClienteRegistrado || clavesYaVistas.includes(claveFila);
+          }
           mesesMap[label].filas.push({
-            clave: r[4], rut: r[5], razon: r[6], empresas: Number(r[7]),
+            clave: claveFila, rut: r[5], razon: r[6], empresas: Number(r[7]),
             tarifa: Number(r[8]), totalUf: Number(r[9]), totalClp: Number(r[10]),
             folio: r[11]||'', desc: r[12]||'',
-            grupo: r[13]==='SI', correoEnviado: r[14]==='SI', pdfUrl: (r.length>15 && r[15] && r[15]!=='undefined' ? r[15] : '')
+            grupo: r[13]==='SI', correoEnviado: r[14]==='SI',
+            pdfUrl: (r.length>15 && r[15] && r[15]!=='undefined' ? r[15] : ''),
+            extra: esExtra
           });
         }
       });
@@ -3085,6 +3099,11 @@ function pptoSetTab(tab){
   document.querySelectorAll('.ppto-tab-panel').forEach(p=>p.style.display='none');
   document.getElementById('ppto-tab-'+tab).style.display='block';
   pptoRender(tab);
+  // Al volver al resumen siempre recalcular con datos frescos
+  if(tab==='resumen'){
+    const anio = pptoAnioActual();
+    pptoRenderResumen(anio, pptoGetAnio(anio));
+  }
 }
 
 function pptoCargarAnio(){
@@ -3100,6 +3119,15 @@ function pptoRender(tab){
   if(tab==='parametros') pptoRenderParametros(anio, d);
   if(tab==='ingresos') pptoRenderIngresos(anio, d);
   if(tab==='gastos') pptoRenderGastos(anio, d);
+}
+
+// Actualiza el resumen en background cuando se editan datos en otros tabs
+function pptoActualizarResumenSiVisible(){
+  const resumenPanel = document.getElementById('ppto-tab-resumen');
+  if(resumenPanel && resumenPanel.style.display !== 'none'){
+    const anio = pptoAnioActual();
+    pptoRenderResumen(anio, pptoGetAnio(anio));
+  }
 }
 
 // --- RESUMEN ---
@@ -3211,6 +3239,7 @@ function pptoRenderParametros(anio, d){
 function pptoSetUF(idx, val){
   const anio = pptoAnioActual();
   pptoGetAnio(anio).uf[idx] = parseFloat(val)||0;
+  pptoActualizarResumenSiVisible();
 }
 
 function pptoSincUFDesdeFacturacion(){
@@ -3455,6 +3484,7 @@ function pptoIngreso(ri, campo, val){
     if(!row.valores) row.valores = new Array(12).fill(0);
     row.valores[mi] = parseFloat(val)||0;
   }
+  pptoActualizarResumenSiVisible();
 }
 
 function pptoActualizarTotalesIngresos(d){
@@ -3688,6 +3718,7 @@ function pptoGasto(gi, campo, val){
   } else {
     d.gastos[gi].valores[campo] = parseFloat(String(val).replace(/\./g,''))||0;
   }
+  pptoActualizarResumenSiVisible();
 }
 
 function pptoEliminarGasto(gi){
