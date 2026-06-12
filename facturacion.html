@@ -1109,6 +1109,7 @@ async function cargarDesdeSheets(){
       });
       if(Object.keys(mesesMap).length > 0){
         DB.meses = Object.values(mesesMap);
+        DB.meses.sort((a,b)=> a.anio!==b.anio ? a.anio-b.anio : a.mes-b.mes);
       }
     }
 
@@ -1513,6 +1514,7 @@ async function confirmarNuevoMes(){
   }));
 
   DB.meses.push({ label, mes, anio, uf, filas, correos:[] });
+  DB.meses.sort((a,b)=> a.anio!==b.anio ? a.anio-b.anio : a.mes-b.mes);
   mesSelIdx = DB.meses.length-1;
   saveDB();
   await saveFacturacionSheets();
