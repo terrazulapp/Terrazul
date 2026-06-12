@@ -907,7 +907,7 @@ const CONFIG_BASE = {
 
 // ===== API =====
 // Script 1: Datos (cuenta personal) — Lee/escribe Sheet y Drive
-const API_DATOS   = 'https://script.google.com/macros/s/AKfycby8nueOrxUPRnKuKKxtrCUbuLzrSYEOL9VVIuahoj-d8RmH5KgfqZd2opdZlSqvomeqKg/exec';
+const API_DATOS   = 'https://script.google.com/macros/s/AKfycbwWUPfIbnECtYogS8wZgmH6hhYH-jMxLcdgEMHYWIa0Bn4t-7XVtYvLZrPrh40HsWRbPw/exec';
 // Script 2: Correos (naguilar@trzl.cl) — Crea borradores Gmail
 const API_CORREOS = 'https://script.google.com/macros/s/AKfycbwWWjHQp_Zmd6krgFFRhifGr52kyTS6u5DoOXwODd2BI4WnaecxDNXTjVk-BsRt-ZoY/exec';
 
@@ -1129,6 +1129,10 @@ async function cargarDesdeSheets(){
 
     limpiarDB();
     saveDB();
+
+    // Cargar presupuesto desde hoja separada (puede no existir aún)
+    await pptoCargarDesdeSheet();
+
     document.getElementById('page-title').textContent = 'Panel de Control';
     toast('✅ Datos cargados desde Sheets','s');
 
@@ -3370,10 +3374,12 @@ function pptoRenderIngresos(anio, d){
         if(!row.overrides) row.overrides = {};
         const override = row.overrides[mi];
         const displayVal = override !== undefined ? override : (ufClp > 0 ? Math.round(ufClp) : '');
-        total += parseFloat(displayVal)||ufClp;
+        const displayNum = parseFloat(String(displayVal).replace(/\./g,'').replace(',','.'))||ufClp;
+        total += displayNum;
+        const displayStr = displayVal !== '' ? fmtNum(Math.round(displayNum)) : '';
         return `<td style="padding:2px 3px">
           <input type="text" inputmode="numeric" class="ppto-input editable" style="border:1px solid #c8d8f0;border-radius:4px;background:#f0f4ff;width:88px;color:#2952a3;font-weight:500;text-align:right"
-            value="${displayVal}" placeholder="${ufClp>0?Math.round(ufClp):''}"
+            value="${displayStr}" placeholder="${ufClp>0?fmtNum(Math.round(ufClp)):''}"
             onblur="pptoInputFormula(this, r=>pptoIngreso(${ri},'override-${mi}',r), ${mi})"
             onkeydown="if(event.key==='Enter'){pptoInputFormula(this,r=>pptoIngreso(${ri},'override-${mi}',r),${mi});this.blur()}"
             title="Fórmulas: =UF*tarifa, =UF(jun)*5.5, =1200000+300000">
@@ -3382,15 +3388,18 @@ function pptoRenderIngresos(anio, d){
     } else {
       // CLP directo: todos editables
       const vals = row.valores||new Array(12).fill(0);
-      total = vals.reduce((s,v)=>s+(parseFloat(v)||0),0);
-      colsMes = vals.map((v,mi)=>`
-        <td style="padding:2px 3px">
+      total = vals.reduce((s,v)=>s+(parseFloat(String(v).replace(/\./g,'').replace(',','.'))||0),0);
+      colsMes = vals.map((v,mi)=>{
+        const num = parseFloat(String(v).replace(/\./g,'').replace(',','.'))||0;
+        const displayStr = num > 0 ? fmtNum(num) : '';
+        return `<td style="padding:2px 3px">
           <input type="text" inputmode="numeric" class="ppto-input editable" style="border:1px solid var(--gray-200);border-radius:4px;background:#fff;width:88px;text-align:right"
-            value="${v||''}" placeholder="0"
+            value="${displayStr}" placeholder="0"
             onblur="pptoInputFormula(this, r=>pptoIngreso(${ri},'val-${mi}',r), ${mi})"
             onkeydown="if(event.key==='Enter'){pptoInputFormula(this,r=>pptoIngreso(${ri},'val-${mi}',r),${mi});this.blur()}"
             title="Fórmulas: =UF*5, =UF(mar)*10, =500000*3">
-        </td>`).join('');
+        </td>`;
+      }).join('');
     }
 
     return `<tr style="background:${bgRow}">
@@ -3802,7 +3811,51 @@ function pptoCalcEgresosMes(d){
 // --- GUARDAR ---
 async function pptoGuardar(){
   saveDB();
-  toast('✅ Presupuesto guardado localmente','s');
+
+  // Serializar todos los años del presupuesto al Sheet
+  // Formato: una fila por año con el JSON completo
+  // Hoja "Presupuesto": anio | uf (json) | ingresos (json) | gastos (json)
+  try {
+    toast('⏳ Guardando en Google Sheets...', 'w');
+    const db = pptoGetDB();
+    const rows = [['anio', 'uf', 'ingresos', 'gastos']];
+    Object.entries(db).forEach(([anio, d])=>{
+      rows.push([
+        anio,
+        JSON.stringify(d.uf||[]),
+        JSON.stringify(d.ingresos||[]),
+        JSON.stringify(d.gastos||[])
+      ]);
+    });
+    const resp = await apiPost({ action:'write', sheet:'Presupuesto', data: rows });
+    if(resp && resp.error) throw new Error(resp.error);
+    toast('✅ Presupuesto guardado en Sheets', 's');
+  } catch(e){
+    console.error('pptoGuardar:', e);
+    toast('⚠️ Guardado local OK, pero falló Sheets: ' + e.message, 'w');
+  }
+}
+
+// Carga el presupuesto desde Google Sheet
+async function pptoCargarDesdeSheet(){
+  try {
+    const data = await apiGet('Presupuesto');
+    if(!data || data.length < 2) return; // sin datos
+    const db = pptoGetDB();
+    const [hdr, ...rows] = data;
+    rows.forEach(r=>{
+      if(!r[0]) return;
+      const anio = String(r[0]);
+      try {
+        db[anio] = {
+          uf:       JSON.parse(r[1]||'[]'),
+          ingresos: JSON.parse(r[2]||'[]'),
+          gastos:   JSON.parse(r[3]||'[]')
+        };
+      } catch(e){ console.warn('pptoCargarDesdeSheet parse error:', anio, e); }
+    });
+    saveDB();
+  } catch(e){ console.warn('pptoCargarDesdeSheet:', e); }
 }
 
 // --- NUEVO AÑO ---
