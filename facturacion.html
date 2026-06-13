@@ -890,6 +890,7 @@ async function checkLogin(){
 function cerrarSesion(){
   sessionStorage.removeItem('trzl_auth');
   sessionStorage.removeItem('trzl_user_active');
+  _pptoInicializado = false; // resetear para que próximo login cargue fresh
   document.getElementById('login-user').value='';
   document.getElementById('login-pwd').value='';
   document.getElementById('login-error').style.display='none';
@@ -3075,305 +3076,272 @@ document.addEventListener('click', e=>{
   if(!e.target.closest('#dd-plantillas') && !e.target.closest('#dd-importar')) pptoCloseDD();
 });
 
+
+// ===== PRESUPUESTO DE CAJA — Arquitectura limpia =====
+// Fuente de verdad: DB.presupuestos[anio] = { uf:[12], ingresos:[...], gastos:[...] }
+// Regla simple: lo que el usuario ve en Ingresos/Gastos ES lo que va al Resumen.
+// Los meses futuros editables guardan el valor en row.val[mi] directamente.
+// NO hay overrides, no hay recargas automáticas, no hay lógica de períodos en el cálculo.
+
 const PPTO_MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 const PPTO_CATEGORIAS_GASTO = [
-  '1. Nómina y Honorarios',
-  '2. Instalaciones',
-  '3. Operaciones y Software',
-  '4. Comercial',
-  '5. Financiero',
-  '6. Otros'
+  '1. Nómina y Honorarios','2. Instalaciones','3. Operaciones y Software',
+  '4. Comercial','5. Financiero','6. Otros'
 ];
 
-// Estructura del presupuesto por año
-// DB.presupuestos = { '2026': { uf: [v1..v12], ingresos: [...], gastos: [...] } }
+let _pptoInicializado = false;
 
-function pptoGetDB(){
-  if(!DB.presupuestos) DB.presupuestos = {};
-  return DB.presupuestos;
-}
+function pptoGetDB(){ if(!DB.presupuestos) DB.presupuestos={}; return DB.presupuestos; }
 
 function pptoGetAnio(anio){
   const db = pptoGetDB();
-  if(!db[anio]) db[anio] = pptoAnioVacio(anio);
+  if(!db[anio]) db[anio] = { uf:new Array(12).fill(0), ingresos:[], gastos:[] };
   return db[anio];
 }
 
-function pptoAnioVacio(anio){
-  return {
-    uf: new Array(12).fill(0),
-    ingresos: [],
-    gastos: []
-  };
-}
+function pptoAnioActual(){ return parseInt(document.getElementById('ppto-anio-sel')?.value)||new Date().getFullYear(); }
+function pptoTabActual(){ return document.querySelector('.ppto-tab-btn.active')?.dataset.tab||'resumen'; }
 
-function pptoAnioActual(){
-  return parseInt(document.getElementById('ppto-anio-sel').value) || new Date().getFullYear();
-}
-
-function pptoTabActual(){
-  const activo = document.querySelector('.ppto-tab-btn.active');
-  return activo ? activo.dataset.tab : 'resumen';
-}
-
-// --- Inicializar selector de año y tabs ---
+// ─── INIT ────────────────────────────────────────────────────────────────────
 async function pptoInitUI(){
-  // Primero cargar datos frescos del Sheet
-  await pptoCargarDesdeSheet();
-
+  if(!_pptoInicializado){
+    await pptoCargarDesdeSheet();
+    _pptoInicializado = true;
+  }
   const db = pptoGetDB();
   const anios = Object.keys(db).sort();
   if(!anios.length){
-    const anioActual = new Date().getFullYear();
-    db[anioActual] = pptoCargarDatosEjemplo(anioActual);
-    anios.push(String(anioActual));
+    const a = new Date().getFullYear();
+    db[a] = pptoCargarDatosEjemplo(a);
+    anios.push(String(a));
   }
   const sel = document.getElementById('ppto-anio-sel');
   sel.innerHTML = anios.map(a=>`<option value="${a}">${a}</option>`).join('');
   sel.value = anios[anios.length-1];
-
   document.getElementById('ppto-tabs').innerHTML = [
-    {id:'resumen', label:'📋 Resumen'},
-    {id:'parametros', label:'💱 UF'},
-    {id:'ingresos', label:'📥 Ingresos'},
-    {id:'gastos', label:'📤 Gastos'},
+    {id:'resumen',label:'📋 Resumen'},{id:'parametros',label:'💱 UF'},
+    {id:'ingresos',label:'📥 Ingresos'},{id:'gastos',label:'📤 Gastos'},
   ].map(t=>`<button class="ppto-tab-btn ${t.id==='resumen'?'active':''}" data-tab="${t.id}" onclick="pptoSetTab('${t.id}')">${t.label}</button>`).join('');
-
   pptoRender();
 }
 
-async function pptoSetTab(tab){
-  document.querySelectorAll('.ppto-tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
+function pptoSetTab(tab){
+  document.querySelectorAll('.ppto-tab-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
   document.querySelectorAll('.ppto-tab-panel').forEach(p=>p.style.display='none');
   document.getElementById('ppto-tab-'+tab).style.display='block';
-
-  const anio = pptoAnioActual();
-  const d = pptoGetAnio(anio);
-  document.getElementById('ppto-titulo-anio').textContent = `Año ${anio}`;
-  if(tab==='resumen') pptoRenderResumen(anio, d);
-  else if(tab==='parametros') pptoRenderParametros(anio, d);
-  else if(tab==='ingresos') pptoRenderIngresos(anio, d);
-  else if(tab==='gastos') pptoRenderGastos(anio, d);
+  pptoRender(tab);
 }
 
-function pptoCargarAnio(){
-  const tab = pptoTabActual();
-  const anio = pptoAnioActual();
-  const d = pptoGetAnio(anio);
-  document.getElementById('ppto-titulo-anio').textContent = `Año ${anio}`;
-  if(tab==='resumen') pptoRenderResumen(anio, d);
-  else if(tab==='parametros') pptoRenderParametros(anio, d);
-  else if(tab==='ingresos') pptoRenderIngresos(anio, d);
-  else if(tab==='gastos') pptoRenderGastos(anio, d);
-}
+function pptoCargarAnio(){ pptoRender(pptoTabActual()); }
 
 function pptoRender(tab){
-  tab = tab || pptoTabActual();
+  tab = tab||pptoTabActual();
   const anio = pptoAnioActual();
   const d = pptoGetAnio(anio);
   document.getElementById('ppto-titulo-anio').textContent = `Año ${anio}`;
-  if(tab==='resumen') pptoRenderResumen(anio, d);
-  if(tab==='parametros') pptoRenderParametros(anio, d);
-  if(tab==='ingresos') pptoRenderIngresos(anio, d);
-  if(tab==='gastos') pptoRenderGastos(anio, d);
+  if(tab==='resumen')    pptoRenderResumen(anio,d);
+  if(tab==='parametros') pptoRenderParametros(anio,d);
+  if(tab==='ingresos')   pptoRenderIngresos(anio,d);
+  if(tab==='gastos')     pptoRenderGastos(anio,d);
 }
 
-// No-op — el resumen se recalcula siempre al volver al tab
-function pptoActualizarResumenSiVisible(){ }
+// ─── CÁLCULO DE VALORES POR FILA ─────────────────────────────────────────────
+// Devuelve array[12] con el valor CLP de cada mes para una fila de ingreso.
+// Jerarquía: dato real facturado > valor editado (val[]) > tarifa×UF si mes activo
+function pptoValoresFila(row, uf, anio){
+  if(row.tipo==='fijo'||row.tipo==='uf-meses') row.tipo='uf';
+  if(row.tipo==='variable') row.tipo='clp';
+  const tipo = row.tipo||'uf';
 
-// --- RESUMEN ---
-function pptoRenderResumen(anio, _d){
-  // Siempre leer directo de DB para evitar referencias stale
-  const d = pptoGetAnio(anio);
-  const tbody = document.getElementById('ppto-tbody-resumen');
-  const ingresosMes = pptoCalcIngresosMes(d, anio);
-  const egresosMes = pptoCalcEgresosMes(d);
-  const totalIngresos = ingresosMes.reduce((s,v)=>s+v,0);
-  const totalEgresos  = egresosMes.reduce((s,v)=>s+v,0);
-
-  // Superávit mensual
-  const superavitMes = ingresosMes.map((v,i)=>v - egresosMes[i]);
-  // Superávit acumulado
-  let acum = 0;
-  const acumMes = superavitMes.map(v=>{ acum+=v; return acum; });
-  const margenMes = ingresosMes.map((v,i)=> v>0 ? superavitMes[i]/v : 0);
-
-  let html = '';
-
-  // ▶ INGRESOS section header
-  html += `<tr class="ppto-section-hdr"><td colspan="14">▶  INGRESOS</td></tr>`;
-  const dFresh = pptoGetAnio(anio);
-  dFresh.ingresos.forEach(row=>{
-    // Usar la misma lógica que pptoCalcIngresosMes: real > override > UF calculado
-    const vals = pptoIngresoCLPConOverrides(row, dFresh.uf, anio);
-    const total = vals.reduce((s,v)=>s+v,0);
-    html += `<tr><td style="padding-left:16px;font-size:12px">${row.nombre}</td>
-      ${vals.map(v=>`<td class="ppto-num">${v>0?fmtClp(Math.round(v)):''}</td>`).join('')}
-      <td class="ppto-total">${total>0?fmtClp(Math.round(total)):''}</td>
-    </tr>`;
-  });
-  // Fila extras reales
-  const extrasValsR = pptoExtrasRealesAnio(anio);
-  const extrasTotalR = extrasValsR.reduce((s,v)=>s+v,0);
-  if(extrasTotalR > 0){
-    html += `<tr style="background:#fff8ee">
-      <td style="padding-left:16px;font-size:12px;color:var(--amber);font-weight:600">⚡ Facturaciones adicionales</td>
-      ${extrasValsR.map(v=>`<td class="ppto-num" style="color:var(--amber);font-weight:600">${v>0?fmtClp(Math.round(v)):''}</td>`).join('')}
-      <td class="ppto-total" style="color:var(--amber);font-weight:700">${fmtClp(Math.round(extrasTotalR))}</td>
-    </tr>`;
+  // CLP directo: usar row.val[] siempre
+  if(tipo==='clp'){
+    return (row.val||new Array(12).fill(0)).map(v=>parseFloat(v)||0);
   }
-  // Total ingresos
-  html += `<tr class="ppto-subtotal"><td style="padding-left:16px">TOTAL INGRESOS</td>
-    ${ingresosMes.map(v=>`<td class="ppto-num" style="font-weight:700">${fmtClp(Math.round(v))}</td>`).join('')}
-    <td class="ppto-total">${fmtClp(Math.round(totalIngresos))}</td>
-  </tr>`;
 
-  // ▶ EGRESOS section header
-  html += `<tr class="ppto-section-hdr"><td colspan="14">▶  EGRESOS</td></tr>`;
-  const cats = {};
-  dFresh.gastos.forEach(g=>{
-    const c = g.categoria;
-    if(!cats[c]) cats[c] = new Array(12).fill(0);
-    g.valores.forEach((v,i)=>cats[c][i]+=(parseFloat(v)||0));
+  // UF: por cada mes decidir qué valor usar
+  const tarifa = parseFloat(row.tarifa)||0;
+  return uf.map((u,mi)=>{
+    // 1. Dato real de Facturación (meses ya cerrados)
+    if(row.clave){
+      const mes = mi+1;
+      const m = DB.meses.find(m=>m.mes===mes && m.anio===anio);
+      if(m){
+        const fila = m.filas.find(f=>f.clave===row.clave && !f.extra);
+        if(fila && fila.totalClp) return fila.totalClp;
+      }
+    }
+    // 2. Valor editado manualmente (row.val[mi])
+    if(row.val && row.val[mi] !== undefined && row.val[mi] !== null && row.val[mi] !== '') {
+      return parseFloat(row.val[mi])||0;
+    }
+    // 3. Cálculo UF × tarifa (solo si dentro del período)
+    if(row.clave){
+      const cli = DB.clientes.find(c=>c.clave===row.clave);
+      if(cli){
+        const mesNum = mi+1;
+        const desde = cli.desdeMes&&cli.desdeAnio ? cli.desdeMes+(cli.desdeAnio*100) : null;
+        const hasta  = cli.hastaMes&&cli.hastaAnio ? cli.hastaMes+(cli.hastaAnio*100) : null;
+        const actual = mesNum+(anio*100);
+        if(desde && actual<desde) return 0;
+        if(hasta  && actual>hasta)  return 0;
+      }
+    }
+    return tarifa*(parseFloat(u)||0);
   });
-  Object.entries(cats).forEach(([cat, vals])=>{
-    const total = vals.reduce((s,v)=>s+v,0);
-    const shortCat = cat.replace(/^\d+\. /,'');
-    html += `<tr><td style="padding-left:16px;font-size:12px">${shortCat}</td>
+}
+
+function pptoCalcIngresosMes(d,anio){
+  const totales=new Array(12).fill(0);
+  d.ingresos.forEach(row=>pptoValoresFila(row,d.uf,anio).forEach((v,i)=>totales[i]+=v));
+  // extras reales (facturas adicionales)
+  for(let mi=0;mi<12;mi++){
+    const mes=mi+1;
+    const m=DB.meses.find(m=>m.mes===mes&&m.anio===anio);
+    if(m) m.filas.filter(f=>f.extra).forEach(f=>totales[mi]+=(f.totalClp||0));
+  }
+  return totales;
+}
+
+function pptoCalcEgresosMes(d){
+  const totales=new Array(12).fill(0);
+  d.gastos.forEach(g=>g.valores.forEach((v,i)=>totales[i]+=(parseFloat(v)||0)));
+  return totales;
+}
+
+// ─── RESUMEN ─────────────────────────────────────────────────────────────────
+function pptoRenderResumen(anio,d){
+  const tbody=document.getElementById('ppto-tbody-resumen');
+  const ingresosMes=pptoCalcIngresosMes(d,anio);
+  const egresosMes=pptoCalcEgresosMes(d);
+  const totalIng=ingresosMes.reduce((s,v)=>s+v,0);
+  const totalEgr=egresosMes.reduce((s,v)=>s+v,0);
+  const supMes=ingresosMes.map((v,i)=>v-egresosMes[i]);
+  let acum=0; const acumMes=supMes.map(v=>{acum+=v;return acum;});
+  const margenMes=ingresosMes.map((v,i)=>v>0?supMes[i]/v:0);
+
+  let html='';
+  html+=`<tr class="ppto-section-hdr"><td colspan="14">▶  INGRESOS</td></tr>`;
+  d.ingresos.forEach(row=>{
+    const vals=pptoValoresFila(row,d.uf,anio);
+    const tot=vals.reduce((s,v)=>s+v,0);
+    html+=`<tr><td style="padding-left:16px;font-size:12px">${row.nombre}</td>
       ${vals.map(v=>`<td class="ppto-num">${v>0?fmtClp(Math.round(v)):''}</td>`).join('')}
-      <td class="ppto-total">${total>0?fmtClp(Math.round(total)):''}</td>
-    </tr>`;
+      <td class="ppto-total">${tot>0?fmtClp(Math.round(tot)):''}</td></tr>`;
   });
-  // Total egresos
-  html += `<tr class="ppto-subtotal"><td style="padding-left:16px">TOTAL EGRESOS</td>
-    ${egresosMes.map(v=>`<td class="ppto-num" style="font-weight:700">${fmtClp(Math.round(v))}</td>`).join('')}
-    <td class="ppto-total">${fmtClp(Math.round(totalEgresos))}</td>
-  </tr>`;
+  // extras
+  const extrasVals=new Array(12).fill(0);
+  for(let mi=0;mi<12;mi++){
+    const m=DB.meses.find(m=>m.mes===mi+1&&m.anio===anio);
+    if(m) m.filas.filter(f=>f.extra).forEach(f=>extrasVals[mi]+=(f.totalClp||0));
+  }
+  if(extrasVals.some(v=>v>0)){
+    html+=`<tr style="background:#fff8ee"><td style="padding-left:16px;font-size:12px;color:var(--amber);font-weight:600">⚡ Facturaciones adicionales</td>
+      ${extrasVals.map(v=>`<td class="ppto-num" style="color:var(--amber);font-weight:600">${v>0?fmtClp(Math.round(v)):''}</td>`).join('')}
+      <td class="ppto-total" style="color:var(--amber);font-weight:700">${fmtClp(Math.round(extrasVals.reduce((s,v)=>s+v,0)))}</td></tr>`;
+  }
+  html+=`<tr class="ppto-subtotal"><td style="padding-left:16px">TOTAL INGRESOS</td>
+    ${ingresosMes.map(v=>`<td class="ppto-num" style="font-weight:700">${fmtClp(Math.round(v))}</td>`).join('')}
+    <td class="ppto-total">${fmtClp(Math.round(totalIng))}</td></tr>`;
 
-  // ▶ RESULTADO
-  html += `<tr class="ppto-section-hdr"><td colspan="14">▶  RESULTADO DE CAJA</td></tr>`;
-  // Superávit mensual
-  html += `<tr class="${superavitMes.reduce((s,v)=>s+v,0)>=0?'ppto-result-pos':'ppto-result-neg'}">
+  html+=`<tr class="ppto-section-hdr"><td colspan="14">▶  EGRESOS</td></tr>`;
+  const catMap={};
+  d.gastos.forEach(g=>{
+    const c=g.categoria.replace(/^\d+\. /,'');
+    if(!catMap[c]) catMap[c]=new Array(12).fill(0);
+    g.valores.forEach((v,i)=>catMap[c][i]+=(parseFloat(v)||0));
+  });
+  Object.entries(catMap).forEach(([cat,vals])=>{
+    const tot=vals.reduce((s,v)=>s+v,0);
+    html+=`<tr><td style="padding-left:16px;font-size:12px">${cat}</td>
+      ${vals.map(v=>`<td class="ppto-num">${v>0?fmtClp(Math.round(v)):''}</td>`).join('')}
+      <td class="ppto-total">${tot>0?fmtClp(Math.round(tot)):''}</td></tr>`;
+  });
+  html+=`<tr class="ppto-subtotal"><td style="padding-left:16px">TOTAL EGRESOS</td>
+    ${egresosMes.map(v=>`<td class="ppto-num" style="font-weight:700">${fmtClp(Math.round(v))}</td>`).join('')}
+    <td class="ppto-total">${fmtClp(Math.round(totalEgr))}</td></tr>`;
+
+  html+=`<tr class="ppto-section-hdr"><td colspan="14">▶  RESULTADO DE CAJA</td></tr>`;
+  html+=`<tr class="${supMes.reduce((s,v)=>s+v,0)>=0?'ppto-result-pos':'ppto-result-neg'}">
     <td style="padding-left:16px;font-size:11px;font-weight:700">SUPERÁVIT / DÉFICIT MENSUAL</td>
-    ${superavitMes.map(v=>`<td class="ppto-num" style="${v<0?'color:var(--red)':''}">${fmtClp(Math.round(v))}</td>`).join('')}
-    <td class="ppto-total">${fmtClp(Math.round(superavitMes.reduce((s,v)=>s+v,0)))}</td>
-  </tr>`;
-  // Acumulado
-  html += `<tr class="ppto-result-acum">
+    ${supMes.map(v=>`<td class="ppto-num" style="${v<0?'color:var(--red)':''}">${fmtClp(Math.round(v))}</td>`).join('')}
+    <td class="ppto-total">${fmtClp(Math.round(supMes.reduce((s,v)=>s+v,0)))}</td></tr>`;
+  html+=`<tr class="ppto-result-acum">
     <td style="padding-left:16px;font-size:11px;font-weight:700">SUPERÁVIT / DÉFICIT ACUMULADO</td>
     ${acumMes.map(v=>`<td class="ppto-num" style="${v<0?'color:var(--red)':''}">${fmtClp(Math.round(v))}</td>`).join('')}
-    <td class="ppto-total">${fmtClp(Math.round(acumMes[11]||0))}</td>
-  </tr>`;
-  // Margen
-  html += `<tr class="ppto-margen">
+    <td class="ppto-total">${fmtClp(Math.round(acumMes[11]||0))}</td></tr>`;
+  html+=`<tr class="ppto-margen">
     <td style="padding-left:16px;font-size:11px">Margen de utilidad mensual (%)</td>
     ${margenMes.map(v=>`<td class="ppto-num">${(v*100).toFixed(1)}%</td>`).join('')}
-    <td class="ppto-total">${totalIngresos>0?((superavitMes.reduce((s,v)=>s+v,0)/totalIngresos)*100).toFixed(1)+'%':'—'}</td>
-  </tr>`;
+    <td class="ppto-total">${totalIng>0?((supMes.reduce((s,v)=>s+v,0)/totalIng)*100).toFixed(1)+'%':'—'}</td></tr>`;
 
-  tbody.innerHTML = html;
+  tbody.innerHTML=html;
 }
 
-// --- PARÁMETROS (UF) ---
-function pptoRenderParametros(anio, d){
-  const grid = document.getElementById('ppto-uf-grid');
-  grid.innerHTML = PPTO_MESES.map((mes,i)=>`
+// ─── PARÁMETROS UF ────────────────────────────────────────────────────────────
+function pptoRenderParametros(anio,d){
+  const grid=document.getElementById('ppto-uf-grid');
+  grid.innerHTML=PPTO_MESES.map((mes,i)=>`
     <div>
       <label class="fl">${mes} ${anio}</label>
-      <div style="display:flex;gap:6px">
-        <input type="number" class="ppto-input editable" style="border:1px solid var(--gray-200);border-radius:var(--rs);padding:7px 10px;background:#fff;text-align:left"
-          id="ppto-uf-${i}" value="${d.uf[i]||''}" placeholder="0.00" step="0.01"
-          oninput="pptoSetUF(${i},this.value)">
-      </div>
-    </div>
-  `).join('');
+      <input type="number" class="ppto-input editable" style="border:1px solid var(--gray-200);border-radius:var(--rs);padding:7px 10px;background:#fff;text-align:left"
+        id="ppto-uf-${i}" value="${d.uf[i]||''}" placeholder="0.00" step="0.01"
+        oninput="pptoSetUF(${i},this.value)">
+    </div>`).join('');
 }
 
-function pptoSetUF(idx, val){
-  const anio = pptoAnioActual();
-  pptoGetAnio(anio).uf[idx] = parseFloat(val)||0;
-  pptoActualizarResumenSiVisible();
+function pptoSetUF(idx,val){
+  pptoGetAnio(pptoAnioActual()).uf[idx]=parseFloat(val)||0;
 }
 
 function pptoSincUFDesdeFacturacion(){
-  const anio = pptoAnioActual();
-  const d = pptoGetAnio(anio);
-  let importados = 0;
+  const anio=pptoAnioActual(); const d=pptoGetAnio(anio);
+  let n=0;
   DB.meses.forEach(m=>{
-    if(m.anio === anio && m.uf && m.mes>=1 && m.mes<=12){
-      d.uf[m.mes-1] = m.uf;
-      importados++;
-      const inp = document.getElementById(`ppto-uf-${m.mes-1}`);
-      if(inp) inp.value = m.uf;
+    if(m.anio===anio&&m.uf&&m.mes>=1&&m.mes<=12){
+      d.uf[m.mes-1]=m.uf; n++;
+      const inp=document.getElementById(`ppto-uf-${m.mes-1}`);
+      if(inp) inp.value=m.uf;
     }
   });
-  toast(importados>0 ? `✅ ${importados} valores UF importados desde Facturación`:'ℹ️ No hay meses de este año en Facturación', importados>0?'s':'w');
+  toast(n>0?`✅ ${n} valores UF importados`:'ℹ️ No hay meses de este año',n>0?'s':'w');
 }
 
-// --- INGRESOS ---
-// Tipos: 'uf' = tarifa UF × uf[mes] (período según cliente), 'clp' = monto CLP directo por mes
-
-// Busca el totalClp real facturado para un cliente en un mes/año específico
-function pptoGetRealDesdeFact(clave, mesIdx, anio){
-  const mes = mesIdx + 1;
-  const m = DB.meses.find(m => m.mes === mes && m.anio === anio);
-  if(!m) return null;
-  const fila = m.filas.find(f => f.clave === clave && !f.extra);
-  if(!fila) return null;
-  return fila.totalClp || null;
-}
-
-// Suma todos los ingresos de facturas adicionales (extra:true) de un mes/año
-function pptoGetExtrasRealesMes(mesIdx, anio){
-  const mes = mesIdx + 1;
-  const m = DB.meses.find(m => m.mes === mes && m.anio === anio);
-  if(!m) return null;
-  const extras = m.filas.filter(f => f.extra);
-  if(!extras.length) return null;
-  return extras.reduce((s, f) => s + (f.totalClp||0), 0);
-}
-
-// Retorna array de 12 valores con los totales reales de extras por mes
-function pptoExtrasRealesAnio(anio){
-  return Array.from({length:12}, (_,i) => pptoGetExtrasRealesMes(i, anio) || 0);
-}
-
-function pptoRenderIngresos(anio, d){
-  const tbody = document.getElementById('ppto-tbody-ingresos');
+// ─── INGRESOS ─────────────────────────────────────────────────────────────────
+function pptoRenderIngresos(anio,d){
+  const tbody=document.getElementById('ppto-tbody-ingresos');
   if(!d.ingresos.length){
-    tbody.innerHTML = '<tr><td colspan="16" class="no-rows">Sin líneas. Usa "Importar clientes activos" para comenzar.</td></tr>';
+    tbody.innerHTML='<tr><td colspan="16" class="no-rows">Sin líneas. Usa "Importar clientes activos" para comenzar.</td></tr>';
     return;
   }
 
   // Leyenda
-  const leyenda = `<tr style="background:#f0f4ff;border-bottom:1px solid var(--gray-200)">
+  let html=`<tr style="background:#f0f4ff;border-bottom:1px solid var(--gray-200)">
     <td colspan="2" style="padding:5px 12px;font-size:10px;color:var(--gray-600)">
       <strong>Celdas:</strong>
-      <span style="margin-left:6px;padding:1px 6px;border-radius:3px;background:#e8f5f4;color:#2A9D8F;font-size:10px;font-weight:600">📊 real</span> = dato real desde Facturación &nbsp;|&nbsp;
+      <span style="padding:1px 6px;border-radius:3px;background:#e8f5f4;color:#2A9D8F;font-size:10px;font-weight:600">📊 real</span> = dato real desde Facturación &nbsp;|&nbsp;
       <span style="padding:1px 6px;border-radius:3px;background:#f0f4ff;color:#2952a3;font-size:10px;font-weight:600">✏️ editable</span> = proyección editable
     </td>
     ${PPTO_MESES.map(m=>`<td style="text-align:center;font-size:10px;font-weight:600;color:var(--gray-400);padding:5px 2px">${m}</td>`).join('')}
     <td colspan="2"></td>
   </tr>`;
 
-  let html = leyenda + d.ingresos.map((row,ri)=>{
+  html+=d.ingresos.map((row,ri)=>{
     if(row.tipo==='fijo'||row.tipo==='uf-meses') row.tipo='uf';
     if(row.tipo==='variable') row.tipo='clp';
-    const tipo = row.tipo||'uf';
-    const bgRow = ri%2===0?'#f9fafb':'#fff';
+    const tipo=row.tipo||'uf';
+    if(!row.val) row.val=new Array(12).fill('');
 
-    // Período desde el cliente
-    const cli = row.clave ? DB.clientes.find(c=>c.clave===row.clave) : null;
-    let periodoTxt = '';
-    if(cli && (cli.desdeMes||cli.hastaMes)){
-      const desde = cli.desdeMes ? MESES_NOMBRES[cli.desdeMes-1].slice(0,3) : '—';
-      const hasta = cli.hastaMes ? MESES_NOMBRES[cli.hastaMes-1].slice(0,3) : 'indef.';
-      periodoTxt = `<span style="font-size:10px;color:var(--amber);background:var(--amber-light);padding:1px 6px;border-radius:3px">${desde}→${hasta}</span>`;
+    const cli=row.clave?DB.clientes.find(c=>c.clave===row.clave):null;
+    let periodoTxt='';
+    if(cli&&(cli.desdeMes||cli.hastaMes)){
+      const desde=cli.desdeMes?MESES_NOMBRES[cli.desdeMes-1].slice(0,3):'—';
+      const hasta=cli.hastaMes?MESES_NOMBRES[cli.hastaMes-1].slice(0,3):'indef.';
+      periodoTxt=`<span style="font-size:10px;color:var(--amber);background:var(--amber-light);padding:1px 6px;border-radius:3px">${desde}→${hasta}</span>`;
     }
 
-    const colNombre = `<td style="font-size:12px;padding:6px 8px;min-width:170px">
+    const colNombre=`<td style="font-size:12px;padding:6px 8px;min-width:170px">
       <input type="text" class="ppto-input editable" style="border:1px solid var(--gray-200);border-radius:4px;background:#fff;text-align:left;font-size:12px"
-        value="${row.nombre}" placeholder="Nombre" oninput="pptoIngreso(${ri},'nombre',this.value)">
+        value="${row.nombre||''}" placeholder="Nombre" oninput="pptoIngreso(${ri},'nombre',this.value)">
       <div style="margin-top:3px;display:flex;align-items:center;gap:4px;flex-wrap:wrap">
         <select style="font-size:10px;border:1px solid var(--gray-200);border-radius:3px;padding:2px 5px;background:#fff;cursor:pointer;color:var(--gray-600)"
           onchange="pptoIngreso(${ri},'tipo',this.value)">
@@ -3384,611 +3352,338 @@ function pptoRenderIngresos(anio, d){
       </div>
     </td>`;
 
-    const colTarifa = `<td style="padding:4px 6px;min-width:75px">
-      ${tipo==='uf'
-        ? `<input type="text" inputmode="decimal" class="ppto-input editable" style="border:1px solid var(--gray-200);border-radius:4px;background:#fff;width:70px;text-align:right"
-            value="${row.tarifa||''}" placeholder="UF"
-            oninput="pptoIngreso(${ri},'tarifa',this.value)"
-            onblur="pptoInputFormula(this, r=>pptoIngreso(${ri},'tarifa',r))"
-            title="Tarifa UF. Puedes escribir =5.5833*12">`
-        : `<span style="font-size:10px;color:var(--gray-400);padding:0 8px">—</span>`
-      }
+    const colTarifa=`<td style="padding:4px 6px;min-width:75px">
+      ${tipo==='uf'?`<input type="text" inputmode="decimal" class="ppto-input editable"
+        style="border:1px solid var(--gray-200);border-radius:4px;background:#fff;width:70px;text-align:right"
+        value="${row.tarifa||''}" placeholder="UF"
+        oninput="pptoIngreso(${ri},'tarifa',this.value)"
+        onblur="pptoInputFormula(this,r=>pptoIngreso(${ri},'tarifa',r))"
+        title="Tarifa UF. Puedes escribir =5.5833*12">`
+      :`<span style="font-size:10px;color:var(--gray-400);padding:0 8px">—</span>`}
     </td>`;
 
-    // Celdas por mes — lógica híbrida para tipo 'uf'
-    let colsMes = '';
-    let total = 0;
-
+    let colsMes=''; let total=0;
     if(tipo==='uf'){
-      const ufVals = pptoIngresoCLP(row, d.uf, anio); // valores calculados UF
-      colsMes = ufVals.map((ufClp, mi)=>{
-        const activo = pptoMesActivo(row, mi, anio);
-        if(!activo){
-          total += 0;
-          return `<td class="ppto-num" style="color:var(--gray-400);background:#fafafa">—</td>`;
-        }
-        // Buscar dato real en Facturación
-        const real = row.clave ? pptoGetRealDesdeFact(row.clave, mi, anio) : null;
-        if(real !== null){
-          total += real;
+      colsMes=d.uf.map((u,mi)=>{
+        // Verificar si hay dato real
+        const mes=mi+1;
+        const mObj=DB.meses.find(m=>m.mes===mes&&m.anio===anio);
+        const filaReal=mObj&&row.clave?mObj.filas.find(f=>f.clave===row.clave&&!f.extra):null;
+        if(filaReal&&filaReal.totalClp){
+          total+=filaReal.totalClp;
           return `<td style="padding:2px 4px;text-align:right">
             <div style="display:flex;flex-direction:column;align-items:flex-end;gap:1px">
-              <span style="font-size:11px;font-weight:600;color:var(--navy)">${fmtClp(Math.round(real))}</span>
+              <span style="font-size:11px;font-weight:600;color:var(--navy)">${fmtClp(Math.round(filaReal.totalClp))}</span>
               <span style="font-size:9px;padding:0px 4px;border-radius:2px;background:#e8f5f4;color:#2A9D8F;font-weight:600">📊 real</span>
-            </div>
-          </td>`;
+            </div></td>`;
         }
-        // Sin dato real → input editable con valor UF como default
-        // Buscar si hay override guardado
-        if(!row.overrides) row.overrides = {};
-        const override = row.overrides[String(mi)];
-        const displayVal = override !== undefined ? override : (ufClp > 0 ? Math.round(ufClp) : '');
-        const displayNum = parseFloat(String(displayVal).replace(/\./g,'').replace(',','.'))||ufClp;
-        total += displayNum;
-        const displayStr = displayVal !== '' ? fmtNum(Math.round(displayNum)) : '';
+        // Valor editado
+        const valEdit=row.val&&row.val[mi]!==''&&row.val[mi]!==undefined&&row.val[mi]!==null?row.val[mi]:null;
+        const ufCalc=Math.round((parseFloat(row.tarifa)||0)*(parseFloat(u)||0));
+        const displayVal=valEdit!==null?valEdit:ufCalc;
+        total+=parseFloat(displayVal)||0;
         return `<td style="padding:2px 3px">
-          <input type="text" inputmode="numeric" class="ppto-input editable" style="border:1px solid #c8d8f0;border-radius:4px;background:#f0f4ff;width:88px;color:#2952a3;font-weight:500;text-align:right"
-            value="${displayStr}" placeholder="${ufClp>0?fmtNum(Math.round(ufClp)):''}"
-            onblur="pptoInputFormula(this, r=>pptoIngreso(${ri},'override-${mi}',r), ${mi})"
-            onkeydown="if(event.key==='Enter'){pptoInputFormula(this,r=>pptoIngreso(${ri},'override-${mi}',r),${mi});this.blur()}"
-            title="Fórmulas: =UF*tarifa, =UF(jun)*5.5, =1200000+300000">
+          <input type="text" inputmode="numeric" class="ppto-input editable"
+            style="border:1px solid #c8d8f0;border-radius:4px;background:#f0f4ff;width:88px;color:#2952a3;font-weight:500;text-align:right"
+            value="${displayVal>0?fmtNum(Math.round(displayVal)):''}" placeholder="${ufCalc>0?fmtNum(ufCalc):''}"
+            onblur="pptoInputFormula(this,r=>pptoIngreso(${ri},'val-${mi}',r),${mi})"
+            onkeydown="if(event.key==='Enter'){pptoInputFormula(this,r=>pptoIngreso(${ri},'val-${mi}',r),${mi});this.blur()}"
+            title="Fórmulas: =UF*tarifa, =250000">
         </td>`;
       }).join('');
     } else {
-      // CLP directo: todos editables
-      const vals = row.valores||new Array(12).fill(0);
-      total = vals.reduce((s,v)=>s+(parseFloat(String(v).replace(/\./g,'').replace(',','.'))||0),0);
-      colsMes = vals.map((v,mi)=>{
-        const num = parseFloat(String(v).replace(/\./g,'').replace(',','.'))||0;
-        const displayStr = num > 0 ? fmtNum(num) : '';
+      colsMes=(row.val||new Array(12).fill('')).map((v,mi)=>{
+        const num=parseFloat(String(v).replace(/\./g,'').replace(',','.'))||0;
+        total+=num;
         return `<td style="padding:2px 3px">
-          <input type="text" inputmode="numeric" class="ppto-input editable" style="border:1px solid var(--gray-200);border-radius:4px;background:#fff;width:88px;text-align:right"
-            value="${displayStr}" placeholder="0"
-            onblur="pptoInputFormula(this, r=>pptoIngreso(${ri},'val-${mi}',r), ${mi})"
+          <input type="text" inputmode="numeric" class="ppto-input editable"
+            style="border:1px solid var(--gray-200);border-radius:4px;background:#fff;width:88px;text-align:right"
+            value="${num>0?fmtNum(num):''}" placeholder="0"
+            onblur="pptoInputFormula(this,r=>pptoIngreso(${ri},'val-${mi}',r),${mi})"
             onkeydown="if(event.key==='Enter'){pptoInputFormula(this,r=>pptoIngreso(${ri},'val-${mi}',r),${mi});this.blur()}"
-            title="Fórmulas: =UF*5, =UF(mar)*10, =500000*3">
+            title="Fórmulas: =UF*5">
         </td>`;
       }).join('');
     }
 
-    return `<tr style="background:${bgRow}">
+    return `<tr style="background:${ri%2===0?'#f9fafb':'#fff'}">
       ${colNombre}${colTarifa}${colsMes}
       <td class="ppto-total">${total>0?fmtClp(Math.round(total)):''}</td>
       <td style="padding:4px 6px">
         <button class="ib del" onclick="pptoEliminarIngreso(${ri})" title="Eliminar">🗑</button>
-      </td>
-    </tr>`;
+      </td></tr>`;
   }).join('');
 
-  // Fila especial: Facturaciones adicionales (extras reales desde Facturación)
-  const extrasVals = pptoExtrasRealesAnio(anio);
-  const extrasTotal = extrasVals.reduce((s,v)=>s+v,0);
-  if(extrasTotal > 0){
-    html += `<tr style="background:#fff8ee;border-top:2px dashed var(--amber)">
+  // Extras + Total
+  const extrasVals=new Array(12).fill(0);
+  for(let mi=0;mi<12;mi++){
+    const m=DB.meses.find(m=>m.mes===mi+1&&m.anio===anio);
+    if(m) m.filas.filter(f=>f.extra).forEach(f=>extrasVals[mi]+=(f.totalClp||0));
+  }
+  const extrasTot=extrasVals.reduce((s,v)=>s+v,0);
+  if(extrasTot>0){
+    html+=`<tr style="background:#fff8ee;border-top:2px dashed var(--amber)">
       <td style="font-size:12px;padding:6px 8px">
         <span style="font-weight:600;color:var(--amber)">⚡ Facturaciones adicionales</span>
-        <div style="font-size:10px;color:var(--gray-400);margin-top:2px">Suma automática de facturas extra · solo lectura</div>
+        <div style="font-size:10px;color:var(--gray-400);margin-top:2px">Suma automática · solo lectura</div>
       </td>
       <td style="padding:4px 6px"><span style="font-size:10px;color:var(--gray-400)">—</span></td>
       ${extrasVals.map(v=>`<td class="ppto-num" style="color:var(--amber);font-weight:600">${v>0?fmtClp(Math.round(v)):''}</td>`).join('')}
-      <td class="ppto-total" style="color:var(--amber);font-weight:700">${fmtClp(Math.round(extrasTotal))}</td>
-      <td></td>
-    </tr>`;
+      <td class="ppto-total" style="color:var(--amber);font-weight:700">${fmtClp(Math.round(extrasTot))}</td>
+      <td></td></tr>`;
   }
-
-  // Footer total — combina reales + proyecciones + extras
-  const ingresosMes = pptoCalcIngresosMes(d, anio);
-  html += `<tr class="ppto-subtotal">
+  const ingresosMes=pptoCalcIngresosMes(d,anio);
+  html+=`<tr class="ppto-subtotal">
     <td colspan="2" style="padding-left:16px">TOTAL INGRESOS</td>
     ${ingresosMes.map(v=>`<td class="ppto-num">${fmtClp(Math.round(v))}</td>`).join('')}
     <td class="ppto-total">${fmtClp(Math.round(ingresosMes.reduce((s,v)=>s+v,0)))}</td>
-    <td></td>
-  </tr>`;
+    <td></td></tr>`;
 
-  tbody.innerHTML = html;
+  tbody.innerHTML=html;
 }
 
-// Retorna true si el mes (0-indexed) del año dado está dentro del período activo del cliente
-function pptoMesActivo(row, mi, anio){
-  const cli = row.clave ? DB.clientes.find(c=>c.clave===row.clave) : null;
-  if(!cli) return true; // sin cliente vinculado → siempre activo
-  const mesNum = mi + 1; // 1-indexed
-  const desde = cli.desdeMes && cli.desdeAnio ? {m:cli.desdeMes, a:cli.desdeAnio} : null;
-  const hasta = cli.hastaMes && cli.hastaAnio ? {m:cli.hastaMes, a:cli.hastaAnio} : null;
-  const actual = {m: mesNum, a: anio};
-  const cmpMesAnio = (a,b) => a.a!==b.a ? a.a-b.a : a.m-b.m;
-  if(desde && cmpMesAnio(actual, desde) < 0) return false;
-  if(hasta && cmpMesAnio(actual, hasta) > 0) return false;
-  return true;
-}
-
-// Calcula los valores reales por mes para una fila de ingreso
-// Jerarquía: dato real de Facturación > override manual > cálculo UF > 0 si fuera de período
-function pptoIngresoCLPConOverrides(row, uf, anio){
-  if(row.tipo==='fijo'||row.tipo==='uf-meses') row.tipo='uf';
-  if(row.tipo==='variable') row.tipo='clp';
-  const tipo = row.tipo||'uf';
-  const anioN = anio || pptoAnioActual();
-
-  if(tipo==='clp'){
-    return (row.valores||new Array(12).fill(0)).map(v=>parseFloat(v)||0);
-  }
-
-  const tarifa = parseFloat(row.tarifa)||0;
-  return uf.map((u, mi)=>{
-    // 1. Dato real de Facturación
-    const real = row.clave ? pptoGetRealDesdeFact(row.clave, mi, anioN) : null;
-    if(real !== null) return real;
-    // 2. Override manual del usuario
-    const override = row.overrides && row.overrides[String(mi)] !== undefined
-      ? row.overrides[String(mi)] : null;
-    if(override !== null) return override;
-    // 3. Cálculo UF si el mes está dentro del período activo
-    if(!pptoMesActivo(row, mi, anioN)) return 0;
-    return tarifa * (parseFloat(u)||0);
-  });
-}
-
-function pptoIngresoCLP(row, uf, anio){
-  // Normalizar tipo legado
-  if(row.tipo==='fijo'||row.tipo==='uf-meses') row.tipo='uf';
-  if(row.tipo==='variable') row.tipo='clp';
-  const tipo = row.tipo||'uf';
-  const anioN = anio || pptoAnioActual();
-
-  if(tipo==='clp'){
-    return (row.valores||new Array(12).fill(0)).map(v=>parseFloat(v)||0);
-  }
-  // tipo 'uf': tarifa × uf[mes], solo si el mes está dentro del período activo
-  const tarifa = parseFloat(row.tarifa)||0;
-  return uf.map((u,i)=>{
-    if(!pptoMesActivo(row, i, anioN)) return 0;
-    return tarifa * (parseFloat(u)||0);
-  });
-}
-
-function pptoIngreso(ri, campo, val){
-  const anio = pptoAnioActual();
-  const d = pptoGetAnio(anio);
-  const row = d.ingresos[ri];
-  if(campo==='nombre') row.nombre = val;
-  else if(campo==='tarifa') row.tarifa = parseFloat(val)||0;
-  else if(campo==='tipo'){
-    row.tipo = val;
-    if(val==='clp' && !row.valores) row.valores = new Array(12).fill(0);
-    pptoRender('ingresos');
-    return;
-  }
-  else if(campo.startsWith('override-')){
-    const mi = parseInt(campo.split('-')[1]);
-    if(!row.overrides) row.overrides = {};
-    const v = parseFloat(val)||0;
-    if(val===''||val===null||v===0) delete row.overrides[String(mi)];
-    else row.overrides[String(mi)] = v; // usar string como clave para consistencia con JSON
-  }
+function pptoIngreso(ri,campo,val){
+  const d=pptoGetAnio(pptoAnioActual());
+  const row=d.ingresos[ri];
+  if(!row) return;
+  if(campo==='nombre') row.nombre=val;
+  else if(campo==='tarifa') row.tarifa=parseFloat(String(val).replace(/\./g,'').replace(',','.'))||0;
+  else if(campo==='tipo'){ row.tipo=val; if(!row.val) row.val=new Array(12).fill(''); pptoRender('ingresos'); return; }
   else if(campo.startsWith('val-')){
-    const mi = parseInt(campo.split('-')[1]);
-    if(!row.valores) row.valores = new Array(12).fill(0);
-    row.valores[mi] = parseFloat(val)||0;
-  }
-  pptoActualizarResumenSiVisible();
-}
-
-function pptoActualizarTotalesIngresos(d){
-  // Actualizar resumen si visible
-  if(document.getElementById('ppto-tab-resumen').style.display !== 'none'){
-    pptoRenderResumen(pptoAnioActual(), d);
+    const mi=parseInt(campo.split('-')[1]);
+    if(!row.val) row.val=new Array(12).fill('');
+    row.val[mi]=parseFloat(String(val).replace(/\./g,'').replace(',','.'))||0;
   }
 }
 
-function pptoToggleIngreso(ri){
-  const anio = pptoAnioActual();
-  const d = pptoGetAnio(anio);
-  d.ingresos[ri].activo = d.ingresos[ri].activo===false ? true : false;
-  pptoRender('ingresos');
-}
-
-function pptoEliminarIngreso(ri){
-  const anio = pptoAnioActual();
-  const d = pptoGetAnio(anio);
-  d.ingresos.splice(ri,1);
-  pptoRender('ingresos');
-}
-
-function pptoAgregarIngreso(){
-  const anio = pptoAnioActual();
-  const d = pptoGetAnio(anio);
-  d.ingresos.push({ nombre:'Nuevo ingreso', tarifa:0, tipo:'uf', activo:true });
-  pptoRender('ingresos');
-}
+function pptoEliminarIngreso(ri){ const d=pptoGetAnio(pptoAnioActual()); d.ingresos.splice(ri,1); pptoRender('ingresos'); }
+function pptoToggleIngreso(ri){ const d=pptoGetAnio(pptoAnioActual()); d.ingresos[ri].activo=!d.ingresos[ri].activo; pptoRender('ingresos'); }
+function pptoAgregarIngreso(){ const d=pptoGetAnio(pptoAnioActual()); d.ingresos.push({nombre:'Nuevo ingreso',tarifa:0,tipo:'uf',val:new Array(12).fill('')}); pptoRender('ingresos'); }
 
 function pptoImportarClientesActivos(){
-  const anio = pptoAnioActual();
-  const d = pptoGetAnio(anio);
-  let agregados = 0;
+  const anio=pptoAnioActual(); const d=pptoGetAnio(anio);
+  let n=0;
   DB.clientes.filter(c=>c.activo!==false).forEach(c=>{
-    const existe = d.ingresos.find(r=>r.clave===c.clave);
-    if(!existe){
-      d.ingresos.push({
-        clave: c.clave,
-        nombre: c.razon,
-        tarifa: (c.empresas||1)*(c.tarifa||0),
-        tipo: 'uf',
-        activo: true
-      });
-      agregados++;
+    if(!d.ingresos.find(r=>r.clave===c.clave)){
+      d.ingresos.push({clave:c.clave,nombre:c.razon,tarifa:(c.empresas||1)*(c.tarifa||0),tipo:'uf',val:new Array(12).fill('')});
+      n++;
     }
   });
-  // Agregar línea de ingresos variables
-  if(!d.ingresos.find(r=>r.tipo==='clp')){
-    d.ingresos.push({ nombre:'Asesorías Tributarias Especiales', tipo:'clp', valores:new Array(12).fill(0), activo:true });
-  }
-  toast(agregados>0?`✅ ${agregados} clientes importados`:'ℹ️ Todos los clientes ya están en el presupuesto', agregados>0?'s':'w');
+  if(!d.ingresos.find(r=>r.tipo==='clp'))
+    d.ingresos.push({nombre:'Asesorías Tributarias Especiales',tipo:'clp',val:new Array(12).fill('')});
+  toast(n>0?`✅ ${n} clientes importados`:'ℹ️ Ya están todos',n>0?'s':'w');
   pptoRender('ingresos');
 }
 
-// --- GASTOS ---
-function pptoRenderGastos(anio, d){
-  const tbody = document.getElementById('ppto-tbody-gastos');
+// ─── GASTOS ──────────────────────────────────────────────────────────────────
+function pptoRenderGastos(anio,d){
+  const tbody=document.getElementById('ppto-tbody-gastos');
   if(!d.gastos.length){
-    tbody.innerHTML = '<tr><td colspan="16" class="no-rows">Sin conceptos. Usa "＋ Agregar concepto" abajo para comenzar.</td></tr>';
+    tbody.innerHTML='<tr><td colspan="16" class="no-rows">Sin conceptos. Usa "＋ Agregar concepto" abajo.</td></tr>';
     return;
   }
-
-  // Agrupar índices por categoría (en orden de aparición)
-  const catGrupos = []; // [{cat, indices:[]}]
-  d.gastos.forEach((g, gi)=>{
-    const ult = catGrupos[catGrupos.length-1];
-    if(ult && ult.cat === g.categoria){ ult.indices.push(gi); }
-    else { catGrupos.push({ cat: g.categoria, indices: [gi] }); }
+  const catGrupos=[];
+  d.gastos.forEach((g,gi)=>{
+    const ult=catGrupos[catGrupos.length-1];
+    if(ult&&ult.cat===g.categoria) ult.indices.push(gi);
+    else catGrupos.push({cat:g.categoria,indices:[gi]});
   });
-
-  let html = '';
-  catGrupos.forEach(({cat, indices})=>{
-    const catShort = cat.replace(/^\d+\. /,'');
-    const catEsc = cat.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
-
-    // Header de categoría con botón ＋
-    html += `<tr class="ppto-section-hdr">
+  let html='';
+  catGrupos.forEach(({cat,indices})=>{
+    const catShort=cat.replace(/^\d+\. /,'');
+    const catEsc=cat.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+    html+=`<tr class="ppto-section-hdr">
       <td colspan="15" style="font-size:11px">${cat}</td>
       <td style="padding:4px 8px;text-align:right;background:rgba(255,255,255,0.1)">
         <button class="btn btn-secondary btn-sm" style="padding:2px 10px;font-size:11px;white-space:nowrap;background:rgba(255,255,255,0.15);border-color:rgba(255,255,255,0.3);color:#fff"
           data-cat="${catEsc}" onclick="pptoAgregarGastoEnCat(this.dataset.cat)">＋</button>
-      </td>
-    </tr>`;
-
-    // Filas de la categoría
+      </td></tr>`;
     indices.forEach(gi=>{
-      const g = d.gastos[gi];
-      const total = g.valores.reduce((s,v)=>s+(parseFloat(v)||0),0);
-      html += `<tr style="background:${gi%2===0?'#f9fafb':'#fff'}">
+      const g=d.gastos[gi];
+      const tot=g.valores.reduce((s,v)=>s+(parseFloat(v)||0),0);
+      html+=`<tr style="background:${gi%2===0?'#f9fafb':'#fff'}">
         <td style="padding:4px 8px">
-          <select class="ppto-input" style="border:1px solid var(--gray-200);border-radius:4px;background:#fff;text-align:left;font-size:11px"
+          <select class="ppto-input" style="border:1px solid var(--gray-200);border-radius:4px;background:#fff;font-size:11px"
             onchange="pptoGasto(${gi},'categoria',this.value)">
             ${PPTO_CATEGORIAS_GASTO.map(c=>`<option value="${c}" ${c===g.categoria?'selected':''}>${c}</option>`).join('')}
           </select>
         </td>
         <td style="padding:4px 8px">
           <input type="text" class="ppto-input editable" style="border:1px solid var(--gray-200);border-radius:4px;background:#fff;text-align:left;font-size:12px"
-            value="${g.concepto}" placeholder="Concepto" oninput="pptoGasto(${gi},'concepto',this.value)">
+            value="${g.concepto||''}" placeholder="Concepto" oninput="pptoGasto(${gi},'concepto',this.value)">
         </td>
-        ${g.valores.map((v,mi)=>`
-          <td style="padding:2px 3px">
-            <input type="text" inputmode="numeric" class="ppto-input editable" style="border:1px solid var(--gray-200);border-radius:4px;background:#fff;width:82px;text-align:right"
-              value="${v||''}" placeholder="0"
-              onblur="pptoInputFormula(this, r=>pptoGasto(${gi},${mi},r), ${mi})"
+        ${g.valores.map((v,mi)=>{
+          const num=parseFloat(String(v||'0').replace(/\./g,'').replace(',','.'))||0;
+          return `<td style="padding:2px 3px">
+            <input type="text" inputmode="numeric" class="ppto-input editable"
+              style="border:1px solid var(--gray-200);border-radius:4px;background:#fff;width:82px;text-align:right"
+              value="${num>0?fmtNum(num):''}" placeholder="0"
+              onblur="pptoInputFormula(this,r=>pptoGasto(${gi},${mi},r),${mi})"
               onkeydown="if(event.key==='Enter'){pptoInputFormula(this,r=>pptoGasto(${gi},${mi},r),${mi});this.blur()}"
-              title="Fórmulas: =UF*2, =UF(jun)*39, =1200000*12">
-          </td>`).join('')}
-        <td class="ppto-total">${total>0?fmtClp(Math.round(total)):''}</td>
-        <td style="padding:4px 8px">
-          <button class="ib del" onclick="pptoEliminarGasto(${gi})" title="Eliminar">🗑</button>
-        </td>
+              title="Fórmulas: =UF*2, =1200000*12">
+          </td>`;
+        }).join('')}
+        <td class="ppto-total">${tot>0?fmtClp(Math.round(tot)):''}</td>
+        <td style="padding:4px 8px"><button class="ib del" onclick="pptoEliminarGasto(${gi})" title="Eliminar">🗑</button></td>
       </tr>`;
     });
-
-    // Subtotal de la categoría
-    const catVals = new Array(12).fill(0);
+    const catVals=new Array(12).fill(0);
     indices.forEach(gi=>d.gastos[gi].valores.forEach((v,i)=>catVals[i]+=(parseFloat(v)||0)));
-    const catTotal = catVals.reduce((s,v)=>s+v,0);
-    html += `<tr class="ppto-subtotal">
+    const catTot=catVals.reduce((s,v)=>s+v,0);
+    html+=`<tr class="ppto-subtotal">
       <td colspan="2" style="padding-left:16px;font-size:11px">SUBTOTAL ${catShort.toUpperCase()}</td>
       ${catVals.map(v=>`<td class="ppto-num">${v>0?fmtClp(Math.round(v)):''}</td>`).join('')}
-      <td class="ppto-total">${catTotal>0?fmtClp(Math.round(catTotal)):''}</td>
-      <td></td>
-    </tr>`;
+      <td class="ppto-total">${catTot>0?fmtClp(Math.round(catTot)):''}</td><td></td></tr>`;
   });
-
-  // Total egresos
-  const egresosMes = pptoCalcEgresosMes(d);
-  html += `<tr class="ppto-subtotal" style="border-top:2px solid var(--navy)">
+  const egr=pptoCalcEgresosMes(d);
+  html+=`<tr class="ppto-subtotal" style="border-top:2px solid var(--navy)">
     <td colspan="2" style="padding-left:16px">TOTAL GASTOS</td>
-    ${egresosMes.map(v=>`<td class="ppto-num" style="font-weight:700">${fmtClp(Math.round(v))}</td>`).join('')}
-    <td class="ppto-total">${fmtClp(Math.round(egresosMes.reduce((s,v)=>s+v,0)))}</td>
-    <td></td>
-  </tr>`;
-
-  tbody.innerHTML = html;
+    ${egr.map(v=>`<td class="ppto-num" style="font-weight:700">${fmtClp(Math.round(v))}</td>`).join('')}
+    <td class="ppto-total">${fmtClp(Math.round(egr.reduce((s,v)=>s+v,0)))}</td><td></td></tr>`;
+  tbody.innerHTML=html;
 }
 
-// Nombres de meses para referencias UF
-const PPTO_MESES_REF = {
-  ene:0, feb:1, mar:2, abr:3, may:4, jun:5,
-  jul:6, ago:7, sep:8, oct:9, nov:10, dic:11
-};
-
-// Evalúa fórmulas del presupuesto con soporte para:
-//   =UF*5.5833          → UF del mes de la columna
-//   =UF(jun)*39         → UF de junio
-//   =UF*empresas        → no soportado, solo números y UF
-//   Operaciones: + - * / ( )
-// mesIdx: índice 0-based del mes de la celda (para UF sin paréntesis)
-// ufArray: array de 12 valores UF del año activo
-function pptoEvalFormula(val, mesIdx, ufArray){
-  if(typeof val !== 'string') return parseFloat(val)||0;
-  const v = val.trim();
-  if(!v.startsWith('=')){
-    // Sin fórmula: limpiar separadores de miles y convertir
-    return parseFloat(v.replace(/\./g,'').replace(',','.'))||0;
+function pptoGasto(gi,campo,val){
+  const d=pptoGetAnio(pptoAnioActual());
+  if(campo==='categoria'){
+    d.gastos[gi].categoria=val;
+    const item=d.gastos.splice(gi,1)[0];
+    let lastIdx=-1;
+    d.gastos.forEach((g,i)=>{ if(g.categoria===val) lastIdx=i; });
+    if(lastIdx>=0) d.gastos.splice(lastIdx+1,0,item); else d.gastos.push(item);
+    pptoRender('gastos'); return;
+  } else if(campo==='concepto'){
+    d.gastos[gi].concepto=val;
+  } else {
+    d.gastos[gi].valores[campo]=parseFloat(String(val).replace(/\./g,'').replace(',','.'))||0;
   }
-  try {
-    const anio = pptoAnioActual();
-    const d = pptoGetAnio(anio);
-    const uf = ufArray || d.uf;
-
-    let expr = v.slice(1).trim();
-
-    // Reemplazar UF(mes) → valor numérico
-    expr = expr.replace(/UF\(([a-záéíóú]+)\)/gi, (_, m)=>{
-      const idx = PPTO_MESES_REF[m.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')];
-      return idx !== undefined ? (uf[idx]||0) : 0;
-    });
-
-    // Reemplazar UF solo (sin paréntesis) → UF del mes actual
-    expr = expr.replace(/\bUF\b/gi, ()=> mesIdx !== undefined ? (uf[mesIdx]||0) : 0);
-
-    // Solo permitir números, operadores y paréntesis
-    const safe = expr.replace(/[^0-9+\-*/().,%\s]/g,'');
-    // Convertir comas decimales a puntos
-    const clean = safe.replace(/,(\d)/g,'.$1');
-    // Remover separadores de miles (punto seguido de exactamente 3 dígitos)
-    const noThousands = clean.replace(/(\d)\.(\d{3})(?!\d)/g,'$1$2');
-
-    const result = Function('"use strict"; return (' + noThousands + ')')();
-    return isFinite(result) ? Math.round(result) : 0;
-  } catch(e){ return 0; }
 }
 
-// Evalúa la fórmula al salir del campo, muestra el resultado y llama callback
-// mesIdx: índice 0-based del mes (para resolver UF)
-function pptoInputFormula(el, callback, mesIdx){
-  const raw = el.value.trim();
+function pptoEliminarGasto(gi){ const d=pptoGetAnio(pptoAnioActual()); d.gastos.splice(gi,1); pptoRender('gastos'); }
+
+function pptoAgregarGastoEnCat(cat){
+  const d=pptoGetAnio(pptoAnioActual());
+  let lastIdx=-1;
+  d.gastos.forEach((g,i)=>{ if(g.categoria===cat) lastIdx=i; });
+  const nueva={categoria:cat,concepto:'',valores:new Array(12).fill(0)};
+  if(lastIdx>=0) d.gastos.splice(lastIdx+1,0,nueva); else d.gastos.push(nueva);
+  pptoRender('gastos');
+  setTimeout(()=>{
+    const inputs=document.querySelectorAll('#ppto-tbody-gastos input[placeholder="Concepto"]');
+    for(const inp of inputs){ if(inp.value===''){inp.focus();inp.select();break;} }
+  },60);
+}
+
+function pptoAgregarGasto(){
+  const d=pptoGetAnio(pptoAnioActual());
+  const cat=d.gastos.length>0?d.gastos[d.gastos.length-1].categoria:PPTO_CATEGORIAS_GASTO[0];
+  pptoAgregarGastoEnCat(cat);
+}
+
+// ─── FÓRMULAS ─────────────────────────────────────────────────────────────────
+const PPTO_MESES_REF={ene:0,feb:1,mar:2,abr:3,may:4,jun:5,jul:6,ago:7,sep:8,oct:9,nov:10,dic:11};
+
+function pptoEvalFormula(val,mesIdx,uf){
+  if(typeof val!=='string') return parseFloat(val)||0;
+  const v=val.trim();
+  if(!v.startsWith('=')) return parseFloat(v.replace(/\./g,'').replace(',','.'))||0;
+  try {
+    let expr=v.slice(1).trim();
+    expr=expr.replace(/UF\(([a-záéíóú]+)\)/gi,(_,m)=>{
+      const idx=PPTO_MESES_REF[m.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')];
+      return idx!==undefined?(uf[idx]||0):0;
+    });
+    expr=expr.replace(/\bUF\b/gi,()=>mesIdx!==undefined?(uf[mesIdx]||0):0);
+    const safe=expr.replace(/[^0-9+\-*/().,%\s]/g,'');
+    const clean=safe.replace(/,(\d)/g,'.$1');
+    const noT=clean.replace(/(\d)\.(\d{3})(?!\d)/g,'$1$2');
+    const result=Function('"use strict";return ('+noT+')')();
+    return isFinite(result)?Math.round(result):0;
+  } catch(e){return 0;}
+}
+
+function pptoInputFormula(el,callback,mesIdx){
+  const raw=el.value.trim();
   if(raw.startsWith('=')){
-    const anio = pptoAnioActual();
-    const d = pptoGetAnio(anio);
-    const result = pptoEvalFormula(raw, mesIdx, d.uf);
-    el.value = fmtNum(result); // mostrar con separadores de miles
-    el.style.color = '#1A5FA8';
-    el.title = 'Fórmula: ' + raw + ' = ' + fmtClp(result);
+    const anio=pptoAnioActual(); const d=pptoGetAnio(anio);
+    const result=pptoEvalFormula(raw,mesIdx,d.uf);
+    el.value=fmtNum(result);
+    el.style.color='#1A5FA8';
+    el.title='Fórmula: '+raw+' = '+fmtClp(result);
     callback(result);
   } else {
-    // Al salir sin fórmula, formatear igualmente si es número
-    const num = parseFloat(raw.replace(/\./g,'').replace(',','.'))||0;
-    if(num > 0) el.value = fmtNum(num);
-    el.style.color = '';
-    el.title = '';
+    const num=parseFloat(raw.replace(/\./g,'').replace(',','.'))||0;
+    if(num>0) el.value=fmtNum(num);
+    el.style.color=''; el.title='';
     callback(num);
   }
 }
 
-function pptoGasto(gi, campo, val){
-  const anio = pptoAnioActual();
-  const d = pptoGetAnio(anio);
-  if(campo==='categoria'){
-    d.gastos[gi].categoria = val;
-    // Reordenar para que quede agrupado con los de su categoría
-    // Extraer el elemento y reinsertarlo después del último de su nueva categoría
-    const item = d.gastos.splice(gi, 1)[0];
-    let lastIdx = -1;
-    d.gastos.forEach((g,i)=>{ if(g.categoria===val) lastIdx=i; });
-    if(lastIdx>=0){ d.gastos.splice(lastIdx+1, 0, item); }
-    else {
-      // Categoría nueva — insertar en orden numérico de categoría
-      const catNum = c => parseInt(c.match(/^(\d+)/)?.[1]||'99');
-      let insertAt = d.gastos.findIndex(g => catNum(g.categoria) > catNum(val));
-      if(insertAt<0) d.gastos.push(item);
-      else d.gastos.splice(insertAt, 0, item);
-    }
-    pptoRender('gastos');
-  } else if(campo==='concepto'){
-    d.gastos[gi].concepto = val;
-  } else {
-    d.gastos[gi].valores[campo] = parseFloat(String(val).replace(/\./g,''))||0;
-  }
-  pptoActualizarResumenSiVisible();
-}
-
-function pptoEliminarGasto(gi){
-  const anio = pptoAnioActual();
-  const d = pptoGetAnio(anio);
-  d.gastos.splice(gi,1);
-  pptoRender('gastos');
-}
-
-// Agrega una línea nueva al final de una categoría específica
-function pptoAgregarGastoEnCat(cat){
-  const anio = pptoAnioActual();
-  const d = pptoGetAnio(anio);
-  // Insertar después del último concepto de esa categoría
-  let lastIdx = -1;
-  d.gastos.forEach((g,i)=>{ if(g.categoria===cat) lastIdx=i; });
-  const nueva = { categoria: cat, concepto: '', valores: new Array(12).fill(0) };
-  if(lastIdx>=0){ d.gastos.splice(lastIdx+1, 0, nueva); }
-  else { d.gastos.push(nueva); }
-  pptoRender('gastos');
-  // Enfocar el concepto de la nueva fila
-  setTimeout(()=>{
-    const rows = document.querySelectorAll('#ppto-tbody-gastos tr');
-    // Buscar la fila recién insertada (concepto vacío)
-    for(const row of rows){
-      const inp = row.querySelector('input[placeholder="Concepto"]');
-      if(inp && inp.value===''){
-        inp.focus();
-        inp.select();
-        break;
-      }
-    }
-  }, 60);
-}
-
-function pptoAgregarGasto(){
-  // Agrega al final en la última categoría usada (botón del pie)
-  const anio = pptoAnioActual();
-  const d = pptoGetAnio(anio);
-  const cat = d.gastos.length>0 ? d.gastos[d.gastos.length-1].categoria : PPTO_CATEGORIAS_GASTO[0];
-  pptoAgregarGastoEnCat(cat);
-}
-
-
-// --- CÁLCULOS ---
-function pptoCalcIngresosMes(d, anio){
-  const anioN = anio || pptoAnioActual();
-  const dFresh = pptoGetAnio(anioN);
-  const totales = new Array(12).fill(0);
-  dFresh.ingresos.forEach(row=>{
-    const vals = pptoIngresoCLPConOverrides(row, dFresh.uf, anioN);
-    vals.forEach((v,i)=>totales[i]+=v);
-  });
-  // Sumar facturaciones adicionales (extras reales desde Facturación)
-  pptoExtrasRealesAnio(anioN).forEach((v,i)=>totales[i]+=v);
-  return totales;
-}
-
-function pptoCalcEgresosMes(d){
-  const anioN = pptoAnioActual();
-  const dFresh = pptoGetAnio(anioN);
-  const totales = new Array(12).fill(0);
-  dFresh.gastos.forEach(g=>{
-    g.valores.forEach((v,i)=>totales[i]+=(parseFloat(v)||0));
-  });
-  return totales;
-}
-
-// --- GUARDAR ---
-// Guardar sin mostrar mensajes (usado al cambiar al tab Resumen)
-// Recarga solo la hoja Facturacion desde el Sheet (sin tocar presupuesto en memoria)
-async function refrescarFacturacion(){
+// ─── GUARDAR / CARGAR ─────────────────────────────────────────────────────────
+async function pptoGuardar(){
+  saveDB();
   try {
-    const data = await apiGet('Facturacion');
-    if(!data || data.length < 2) return;
-    const [hdr, ...rows] = data;
-    const mesesMap = {};
+    toast('⏳ Guardando...','w');
+    const db=pptoGetDB();
+    const rows=[['anio','uf','ingresos','gastos']];
+    Object.entries(db).forEach(([a,d])=>rows.push([a,JSON.stringify(d.uf||[]),JSON.stringify(d.ingresos||[]),JSON.stringify(d.gastos||[])]));
+    const resp=await apiPost({action:'write',sheet:'Presupuesto',data:rows});
+    if(resp&&resp.error) throw new Error(resp.error);
+    toast('✅ Presupuesto guardado','s');
+    pptoRender(pptoTabActual());
+  } catch(e){ toast('⚠️ Guardado local OK, Sheets falló: '+e.message,'w'); }
+}
+
+async function pptoCargarDesdeSheet(){
+  try {
+    const data=await apiGet('Presupuesto');
+    if(!data||data.length<2) return;
+    const db=pptoGetDB();
+    const [hdr,...rows]=data;
     rows.forEach(r=>{
-      const label = String(r[0]||'').trim();
-      if(!label) return;
-      const mesNum  = parseInt(r[1])||0;
-      const anioNum = parseInt(r[2])||0;
-      const labelLimpio = MESES_NOMBRES[mesNum-1] + ' ' + anioNum;
-      if(!mesesMap[label]){
-        mesesMap[label] = { label:labelLimpio, mes:mesNum, anio:anioNum, uf:Number(r[3]), filas:[] };
-      }
-      if(r[4]){
-        const claveFila = r[4];
-        let esExtra;
-        if(r.length > 16 && r[16] !== '' && r[16] !== undefined){
-          esExtra = r[16] === 'SI';
-        } else {
-          const esClienteRegistrado = DB.clientes.find(c => c.clave === claveFila);
-          const clavesYaVistas = mesesMap[label].filas.map(f=>f.clave);
-          esExtra = !esClienteRegistrado || clavesYaVistas.includes(claveFila);
-        }
-        mesesMap[label].filas.push({
-          clave: claveFila, rut: r[5], razon: r[6], empresas: Number(r[7]),
-          tarifa: Number(r[8]), totalUf: Number(r[9]), totalClp: Number(r[10]),
-          folio: r[11]||'', desc: r[12]||'',
-          grupo: r[13]==='SI', correoEnviado: r[14]==='SI',
-          pdfUrl: (r.length>15 && r[15] && r[15]!=='undefined' ? r[15] : ''),
-          extra: esExtra
+      if(!r[0]) return;
+      const a=String(r[0]);
+      try {
+        const parsed={
+          uf:JSON.parse(r[1]||'[]'),
+          ingresos:JSON.parse(r[2]||'[]'),
+          gastos:JSON.parse(r[3]||'[]')
+        };
+        // Migrar overrides → val para compatibilidad con versiones anteriores
+        parsed.ingresos.forEach(row=>{
+          if(!row.val) row.val=new Array(12).fill('');
+          if(row.overrides){
+            Object.entries(row.overrides).forEach(([mi,v])=>{ row.val[parseInt(mi)]=v; });
+            delete row.overrides;
+          }
+          // Migrar valores[] (tipo clp antiguo) → val[]
+          if(row.valores&&row.valores.length){
+            row.valores.forEach((v,mi)=>{ if(v&&!row.val[mi]) row.val[mi]=v; });
+            delete row.valores;
+          }
         });
-      }
+        if(!db[a]) db[a]={};
+        db[a].uf=parsed.uf;
+        db[a].ingresos=parsed.ingresos;
+        db[a].gastos=parsed.gastos;
+      } catch(e){ console.warn('pptoCargarDesdeSheet parse error:',a,e); }
     });
-    if(Object.keys(mesesMap).length > 0){
-      DB.meses = Object.values(mesesMap);
-      DB.meses.sort((a,b)=> a.anio!==b.anio ? a.anio-b.anio : a.mes-b.mes);
-    }
-  } catch(e){ console.warn('refrescarFacturacion:', e); }
+    saveDB();
+  } catch(e){ console.warn('pptoCargarDesdeSheet:',e); }
 }
 
 async function pptoGuardarSilencioso(){
   saveDB();
   try {
-    const db = pptoGetDB();
-    const rows = [['anio', 'uf', 'ingresos', 'gastos']];
-    Object.entries(db).forEach(([anio, d])=>{
-      rows.push([
-        anio,
-        JSON.stringify(d.uf||[]),
-        JSON.stringify(d.ingresos||[]),
-        JSON.stringify(d.gastos||[])
-      ]);
-    });
-    await apiPost({ action:'write', sheet:'Presupuesto', data: rows });
-  } catch(e){ console.warn('pptoGuardarSilencioso:', e); }
+    const db=pptoGetDB();
+    const rows=[['anio','uf','ingresos','gastos']];
+    Object.entries(db).forEach(([a,d])=>rows.push([a,JSON.stringify(d.uf||[]),JSON.stringify(d.ingresos||[]),JSON.stringify(d.gastos||[])]));
+    await apiPost({action:'write',sheet:'Presupuesto',data:rows});
+  } catch(e){ console.warn('pptoGuardarSilencioso:',e); }
 }
 
-async function pptoGuardar(){
-  saveDB();
-  try {
-    toast('⏳ Guardando en Google Sheets...', 'w');
-    const db = pptoGetDB();
-    const rows = [['anio', 'uf', 'ingresos', 'gastos']];
-    Object.entries(db).forEach(([anio, d])=>{
-      rows.push([
-        anio,
-        JSON.stringify(d.uf||[]),
-        JSON.stringify(d.ingresos||[]),
-        JSON.stringify(d.gastos||[])
-      ]);
-    });
-    const resp = await apiPost({ action:'write', sheet:'Presupuesto', data: rows });
-    if(resp && resp.error) throw new Error(resp.error);
-    await refrescarFacturacion();
-    toast('✅ Presupuesto guardado', 's');
-    // Re-renderizar el tab activo con datos frescos
-    pptoRender(pptoTabActual());
-  } catch(e){
-    console.error('pptoGuardar:', e);
-    toast('⚠️ Guardado local OK, pero falló Sheets: ' + e.message, 'w');
-  }
-}
+function pptoActualizarResumenSiVisible(){}
 
-// Carga el presupuesto desde Google Sheet
-async function pptoCargarDesdeSheet(){
-  try {
-    const data = await apiGet('Presupuesto');
-    if(!data || data.length < 2) return;
-    const db = pptoGetDB();
-    const [hdr, ...rows] = data;
-    rows.forEach(r=>{
-      if(!r[0]) return;
-      const anio = String(r[0]);
-      try {
-        const parsed = {
-          uf:       JSON.parse(r[1]||'[]'),
-          ingresos: JSON.parse(r[2]||'[]'),
-          gastos:   JSON.parse(r[3]||'[]')
-        };
-        // Mutar el objeto existente en vez de reemplazarlo
-        // para que las referencias previas vean los datos nuevos
-        if(!db[anio]) db[anio] = {};
-        db[anio].uf       = parsed.uf;
-        db[anio].ingresos = parsed.ingresos;
-        db[anio].gastos   = parsed.gastos;
-      } catch(e){ console.warn('pptoCargarDesdeSheet parse error:', anio, e); }
-    });
-    saveDB();
-  } catch(e){ console.warn('pptoCargarDesdeSheet:', e); }
-}
 
 // --- NUEVO AÑO ---
 function pptoNuevoAnio(){
