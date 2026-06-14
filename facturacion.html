@@ -3972,18 +3972,30 @@ async function exportarExcelPresupuesto(){
       M.forEach((_,mi)=>{
         const col=colMI(mi);
         const c=wsI.getCell(`${col}${rr}`);
-        const activo=pptoMesActivo(row,mi,anio);
-        if(!activo){
-          c.value=null; style(c,{fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FFFAFAFA'}},font:{...bFont,color:{argb:'FFCCCCCC'}}});
-        } else if(tipo==='clp'){
-          // CLP directo: valor editable (input azul)
-          const v=row.valores?.[mi]||null;
+        // Usar pptoValoresFila para obtener el valor correcto
+        const vals=pptoValoresFila(row,d.uf,anio);
+        const v=vals[mi];
+        if(tipo==='clp'){
           c.value=v||null; c.numFmt='#,##0';
           c.font={...bFont,color:{argb:'FF1A5FA8'}}; c.fill=rf; c.alignment=R; c.border=bdr;
+        } else if(v===0){
+          c.value=null; style(c,{fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FFFAFAFA'}},font:{...bFont,color:{argb:'FFCCCCCC'}}});
         } else {
-          // UF × UF mes: fórmula = tarifa(C) × UF del mes(fila 3)
-          c.value={formula:`ROUND(C${rr}*${colMI(mi)}3,0)`};
-          c.numFmt='#,##0'; style(c,{fill:rf,font:bFont});
+          // Verificar si hay dato real de facturación
+          const mes=mi+1;
+          const mObj=DB.meses.find(m=>m.mes===mes&&m.anio===anio);
+          const filaReal=mObj&&row.clave?mObj.filas.find(f=>f.clave===row.clave&&!f.extra):null;
+          if(filaReal&&filaReal.totalClp){
+            c.value=Math.round(filaReal.totalClp)||null; c.numFmt='#,##0';
+            c.font={...bFont,color:{argb:'FF2A9D8F'}}; c.fill=rf; c.alignment=R; c.border=bdr;
+          } else if(row.val&&row.val[mi]!==''&&row.val[mi]!==undefined&&row.val[mi]!==null){
+            c.value=Math.round(parseFloat(row.val[mi])||0)||null; c.numFmt='#,##0';
+            c.font={...bFont,color:{argb:'FF1A5FA8'}}; c.fill=rf; c.alignment=R; c.border=bdr;
+          } else {
+            // Fórmula UF
+            c.value={formula:`ROUND(C${rr}*${colMI(mi)}3,0)`};
+            c.numFmt='#,##0'; style(c,{fill:rf,font:bFont});
+          }
         }
       });
       // Total anual: suma de los 12 meses
@@ -4375,7 +4387,7 @@ async function pptoDescargarPlantilla(seccion){
         ws.getCell(`D${r}`).numFmt='#,##0.00##'; ws.getCell(`D${r}`).alignment=C; ws.getCell(`D${r}`).border=bdr;
         M.forEach((_,mi)=>{
           const col=String.fromCharCode(69+mi);
-          const v=tipo==='clp'?(row.valores?.[mi]||null):null;
+          const v=tipo==='clp'?(row.val?.[mi]||null):null;
           ws.getCell(`${col}${r}`).value=v; ws.getCell(`${col}${r}`).numFmt='#,##0';
           ws.getCell(`${col}${r}`).font=inputFont; ws.getCell(`${col}${r}`).fill=inputFill;
           ws.getCell(`${col}${r}`).alignment=C; ws.getCell(`${col}${r}`).border=bdr;
