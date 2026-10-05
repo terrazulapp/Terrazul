@@ -338,8 +338,15 @@ td{padding:9px 12px;color:var(--navy);vertical-align:middle}
         <button class="btn btn-secondary btn-sm" onclick="limpiarRenta()">✕ Limpiar</button>
         <label class="btn btn-secondary btn-sm" style="cursor:pointer">📥 Importar<input type="file" accept=".xlsx,.xls" style="display:none" onchange="importarRenta(event)"></label>
         <button class="btn btn-teal btn-sm" onclick="abrirModalRenta(null)">✏️ Editar</button>
-      </div>
-    </div>
+          ${esAdmin()?`<button class="btn btn-secondary btn-sm" style="color:var(--red);margin-left:4px" onclick="event.stopPropagation();eliminarSociedad('${c.rut}','${c.razon}')">🗑️ Desactivar</button>`:''}
+          </div>
+        </div>
+      </div></div></td>\`;
+      tb.appendChild(dtr);
+    }
+  });
+}
+
     <div class="legend-row">
       <span style="font-size:11px;color:var(--gray-400);font-weight:600">ESTADOS:</span>
       <div class="legend-item"><span class="sem sem-ok">✓</span> Aceptada</div>
@@ -756,6 +763,15 @@ td{padding:9px 12px;color:var(--navy);vertical-align:middle}
       </div>
       <div style="border-top:1px solid var(--gray-200);padding-top:16px;margin-top:16px">
         <div style="font-size:12px;font-weight:500;margin-bottom:8px">⚠️ Datos locales</div>
+              <div style="border-top:1px solid var(--gray-200);padding-top:16px;margin-top:16px">
+        <div style="font-size:12px;font-weight:500;margin-bottom:8px">🏢 Gestión de Sociedades</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-primary btn-sm" onclick="openModal('modal-nueva-soc')">+ Nueva sociedad</button>
+          ${esAdmin()?'<button class="btn btn-secondary btn-sm" style="color:var(--red)" onclick="abrirDesactivarSociedad()">🗑️ Desactivar sociedad</button>':''}
+        </div>
+      </div>
+      <div style="border-top:1px solid var(--gray-200);padding-top:16px;margin-top:16px">
+        <div style="font-size:12px;font-weight:500;margin-bottom:8px">⚠️ Datos locales</div>
         <button class="btn btn-secondary btn-sm" onclick="resetData()">🗑️ Resetear todos los datos</button>
         <button class="btn btn-secondary btn-sm" style="margin-top:6px" onclick="if(confirm('¿Resetear solo Patentes?')){localStorage.removeItem('tz2_pat');
   localStorage.removeItem('tz2_iva');
@@ -869,13 +885,31 @@ td{padding:9px 12px;color:var(--navy);vertical-align:middle}
       </div>
       <div style="margin-bottom:10px">
         <label class="form-label">Representante(s) Legal(es)</label>
-        <textarea id="msii-reps" class="form-input" rows="3" placeholder="RUT | Nombre (una por línea)
-Ej: 12.345.678-9 | Juan Pérez"></textarea>
+        <div id="msii-reps-wrap" style="display:flex;flex-direction:column;gap:6px"></div>
+        <button type="button" class="btn btn-secondary btn-sm" style="margin-top:6px" onclick="addRepRow('reps')">+ Agregar representante</button>
       </div>
       <div style="margin-bottom:10px">
-        <label class="form-label">Socio(s)</label>
-        <textarea id="msii-socios" class="form-input" rows="3" placeholder="RUT | Nombre (una por línea)
-Ej: 76.123.456-7 | Empresa SA"></textarea>
+        <label class="form-label">Socio(s) / Accionista(s)</label>
+        <div style="font-size:11px;color:var(--gray-400);margin-bottom:4px">RUT · Nombre · % Participación · Capital Total</div>
+        <div id="msii-socios-wrap" style="display:flex;flex-direction:column;gap:6px"></div>
+        <button type="button" class="btn btn-secondary btn-sm" style="margin-top:6px" onclick="addRepRow('socios')">+ Agregar socio</button>
+      </div>
+      <div style="margin-bottom:10px">
+        <label class="form-label">Capital</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+          <div>
+            <label class="form-label" style="font-size:10px">Enterado ($)</label>
+            <input id="msii-cap-enterado" class="form-input" type="number" placeholder="0" oninput="calcCapTotal()">
+          </div>
+          <div>
+            <label class="form-label" style="font-size:10px">Por Enterar ($)</label>
+            <input id="msii-cap-porenterar" class="form-input" type="number" placeholder="0" oninput="calcCapTotal()">
+          </div>
+          <div>
+            <label class="form-label" style="font-size:10px">Total ($)</label>
+            <input id="msii-cap-total" class="form-input" type="number" placeholder="0" readonly style="background:var(--gray-100);color:var(--navy);font-weight:600">
+          </div>
+        </div>
       </div>
       <div style="margin-bottom:10px">
         <label class="form-label">Domicilio Principal</label>
@@ -889,6 +923,59 @@ Ej: 76.123.456-7 | Empresa SA"></textarea>
         <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-sii-edit')">Cancelar</button>
         <button class="btn btn-primary btn-sm" onclick="guardarEditSII()">✓ Guardar</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL NUEVA SOCIEDAD -->
+<div class="overlay" id="modal-nueva-soc">
+  <div class="modal modal-sm">
+    <div class="mh">
+      <div class="mt">Nueva Sociedad</div>
+      <button class="xbtn" onclick="closeModal('modal-nueva-soc')">✕</button>
+    </div>
+    <div class="mb">
+      <div class="fg" style="gap:12px;margin-bottom:12px">
+        <div>
+          <label class="form-label">RUT <span style="color:var(--red)">*</span></label>
+          <input id="ns-rut" class="form-input" type="text" placeholder="Ej: 76.123.456-7">
+        </div>
+        <div>
+          <label class="form-label">Cliente</label>
+          <select id="ns-cliente" class="form-select">
+            <option value="">Sin asignar</option>
+            <option value="Talinay">Talinay</option>
+            <option value="RRG">RRG</option>
+            <option value="Solek">Solek</option>
+          </select>
+        </div>
+      </div>
+      <div style="margin-bottom:14px">
+        <label class="form-label">Razón Social <span style="color:var(--red)">*</span></label>
+        <input id="ns-razon" class="form-input" type="text" placeholder="Nombre legal completo">
+      </div>
+      <div id="ns-error" style="display:none;color:var(--red);font-size:12px;margin-bottom:10px"></div>
+      <div style="border-top:1px solid var(--gray-200);padding-top:12px;display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-nueva-soc')">Cancelar</button>
+        <button class="btn btn-primary btn-sm" onclick="guardarNuevaSociedad()">✓ Crear sociedad</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL DESACTIVAR SOCIEDAD -->
+<div class="overlay" id="modal-deact-soc">
+  <div class="modal modal-sm">
+    <div class="mh">
+      <div class="mt">Desactivar Sociedad</div>
+      <button class="xbtn" onclick="closeModal('modal-deact-soc')">✕</button>
+    </div>
+    <div class="mb">
+      <div style="margin-bottom:12px">
+        <label class="form-label">Buscar sociedad</label>
+        <input id="deact-q" class="form-input" type="text" placeholder="RUT o razón social..." oninput="filtrarDeact()">
+      </div>
+      <div id="deact-lista" style="max-height:300px;overflow-y:auto;border:1px solid var(--gray-200);border-radius:var(--rs)"></div>
     </div>
   </div>
 </div>
@@ -1575,28 +1662,92 @@ function resetData(){
 
 // EXPORTAR
 function exportarExcel(){
-  const est={3:'Aceptada',2:'Con observaciones',1:'Inconsistencias',0:'No aplica'};
-  const wsData=[['Cliente','RUT','Razón Social',...ATS.flatMap(at=>[at+' Estado',at+' Observación'])]];
-  COMPANIES.forEach(c=>{
-    const r=RENTA[c.rut];
-    wsData.push([c.cliente,c.rut,c.razon,...['at1','at2','at3'].flatMap(k=>[r?est[r[k]?.estado]??'Sin datos':'Sin datos',r?r[k]?.obs||'':''])]);
+  var wb = XLSX.utils.book_new();
+
+  // ── HOJA RENTA ────────────────────────────────────────────────────────
+  var estRenta={'3':'Aceptada','2':'Con observaciones','1':'Observada / Inconsistencias','0':'No aplica','-1':'Sin datos'};
+  var rentaRows = [];
+
+  // Fila 1: título
+  rentaRows.push(['ESTADO DECLARACIONES DE RENTA','','','','',
+    '','','','','','',
+    'Datos','',
+    3,'Aceptada']);
+  rentaRows.push(['','','','','','','','','','','','',2,'Con observaciones']);
+  rentaRows.push(['','','','','','','','','','','','',1,'Observada / Inconsistencias']);
+  // Fila 5: cabecera
+  rentaRows.push(['','','','','']);
+  rentaRows.push(['N°','Grupo','Código','RUT','Razón Social',
+    ATS[0],'',ATS[1],'',ATS[2],'',
+    '','',0,'No aplica']);
+
+  var n=0;
+  ['Talinay','RRG','Solek'].forEach(function(cliente){
+    var emps=COMPANIES.filter(function(c){return c.cliente===cliente;});
+    if(!emps.length) return;
+    rentaRows.push([cliente.toUpperCase(),'','','','','','','','','','']);
+    emps.forEach(function(c){
+      n++;
+      var r=RENTA[c.rut]||{};
+      var row=[n,cliente,'',c.rut,c.razon];
+      ['at1','at2','at3'].forEach(function(k){
+        var est=r[k]?r[k].estado:-1;
+        var obs=r[k]?r[k].obs||'':'';
+        row.push(estRenta[String(est)]||'Sin datos',obs);
+      });
+      rentaRows.push(row);
+    });
   });
-  const wb=XLSX.utils.book_new();
-  const ws=XLSX.utils.aoa_to_sheet(wsData);
-  ws['!cols']=[{wch:10},{wch:14},{wch:42},{wch:14},{wch:60},{wch:14},{wch:60},{wch:14},{wch:60}];
-  XLSX.utils.book_append_sheet(wb,ws,'Estado Renta');
-  // Hoja DJ
-  const djData=[['Cliente','RUT','Razón Social','Obs. General',...DJ_TYPES]];
-  COMPANIES.forEach(c=>{
-    const d=DJ_DATA[c.rut];
-    djData.push([c.cliente,c.rut,c.razon,d?d.obs_general||'':'',...DJ_TYPES.map(dj=>{
-      const e=d?.djs?.[dj]?.estado;
-      return e===1?'Aceptada':e===0?'Pendiente':'No aplica';
-    })]);
+
+  var wsRenta = XLSX.utils.aoa_to_sheet(rentaRows);
+  wsRenta['!cols']=[{wch:5},{wch:10},{wch:8},{wch:14},{wch:35},{wch:20},{wch:45},{wch:20},{wch:45},{wch:20},{wch:45}];
+  wsRenta['!merges']=[
+    {s:{r:0,c:0},e:{r:0,c:4}},  // título
+    {s:{r:4,c:5},e:{r:4,c:6}},  // AT-2026
+    {s:{r:4,c:7},e:{r:4,c:8}},  // AT-2025
+    {s:{r:4,c:9},e:{r:4,c:10}}  // AT-2024
+  ];
+  XLSX.utils.book_append_sheet(wb,wsRenta,'Estado Renta');
+
+  // ── HOJA DJ ───────────────────────────────────────────────────────────
+  var estDJ={'1':'Aceptada','2':'Con observaciones','0':'Pendiente','-1':'No aplica','-2':'Sin datos'};
+  var djRows = [];
+
+  // Fila 1: título
+  djRows.push(['ESTADO DECLARACIONES JURADAS','','','','','','']);
+  // Leyenda
+  djRows.push(['','','','','','',1,'Aceptada']);
+  djRows.push(['','','','','','',2,'Con observaciones']);
+  djRows.push(['','','','','','',0,'Pendiente']);
+  djRows.push(['','','','','','',-1,'No aplica']);
+  // Cabecera
+  djRows.push(['N°','Cliente','RUT','Razón Social','Formulario','Descripción','Estado','Observación']);
+
+  var m=0;
+  ['Talinay','RRG','Solek'].forEach(function(cliente){
+    var emps=COMPANIES.filter(function(c){return c.cliente===cliente;});
+    if(!emps.length) return;
+    djRows.push([cliente.toUpperCase(),'','','','','','','']);
+    emps.forEach(function(c){
+      var d=DJ_DATA[c.rut];
+      var djs=d?d.djs||{}:{};
+      Object.keys(djs).sort().forEach(function(dj){
+        m++;
+        var info=djs[dj]||{};
+        var est=info.estado!=null?info.estado:-2;
+        var obs=info.obs||'';
+        var desc=DJ_SHORT[dj]||dj;
+        djRows.push([m,cliente,c.rut,c.razon,dj,desc,estDJ[String(est)]||'Sin datos',obs]);
+      });
+    });
   });
-  const ws2=XLSX.utils.aoa_to_sheet(djData);
-  XLSX.utils.book_append_sheet(wb,ws2,'DJ AT-'+ATS[0].split('-')[1]);
-  XLSX.writeFile(wb,'terrazul_control_'+new Date().toISOString().slice(0,10)+'.xlsx');
+
+  var wsDJ = XLSX.utils.aoa_to_sheet(djRows);
+  wsDJ['!cols']=[{wch:5},{wch:10},{wch:14},{wch:35},{wch:10},{wch:30},{wch:18},{wch:55}];
+  wsDJ['!merges']=[{s:{r:0,c:0},e:{r:0,c:5}}];
+  XLSX.utils.book_append_sheet(wb,wsDJ,'Estado DJ');
+
+  XLSX.writeFile(wb,'Terrazul_Control_'+new Date().toISOString().slice(0,10)+'.xlsx');
   toast('✓ Excel exportado (Renta + DJ)','s');
 }
 
@@ -2157,7 +2308,7 @@ function guardarRebaja(){
 
 
 // ── GOOGLE SHEETS API ────────────────────────────────────────────────────
-const API_URL = 'https://script.google.com/macros/s/AKfycbwXiFxsmXsLhj9HEqC6UiI051G0EUN8Mm34cf5wERUJDL83On1D9D_ZyXIJ2hfNg8hukA/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbxl8eKG0FxkgpHk853fGLeMTILP1_97qCyfkNUSIGMqv79mG5lvC-rhMGpbsG83tvAz7Q/exec';
 var CLAVES_SII = {};
 
 function apiGet(params){
@@ -2248,8 +2399,11 @@ function abrirEditSII(rut){
   document.getElementById('msii-rut').textContent = rut;
   document.getElementById('msii-razon').value = c.razon||'';
   document.getElementById('msii-regimen').value = c.regimen||'';
-  document.getElementById('msii-reps').value = (c.reps||[]).map(function(r){return (r.rut?r.rut+' | ':'')+r.nombre;}).join('\n');
-  document.getElementById('msii-socios').value = (c.socios||[]).map(function(s){return (s.rut?s.rut+' | ':'')+s.nombre;}).join('\n');
+  renderPersonasRows('reps', c.reps||[]);
+  renderPersonasRows('socios', c.socios||[]);
+  document.getElementById('msii-cap-enterado').value = c.capEnterado||'';
+  document.getElementById('msii-cap-porenterar').value = c.capPorEnterar||'';
+  document.getElementById('msii-cap-total').value = (c.capEnterado||0)+(c.capPorEnterar||0)||'';
   document.getElementById('msii-domicilio').value = c.domicilio||'';
   document.getElementById('msii-sucursal').value = c.sucursal||'';
   document.getElementById('msii-rut').dataset.rut = rut;
@@ -2264,6 +2418,9 @@ function guardarEditSII(){
   c.regimen = document.getElementById('msii-regimen').value.trim();
   c.reps = document.getElementById('msii-reps').value.split('\n').filter(Boolean).map(function(n){return {nombre:n.trim()};});
   c.socios = document.getElementById('msii-socios').value.split('\n').filter(Boolean).map(function(n){return {nombre:n.trim()};});
+  c.capEnterado   = parseFloat(document.getElementById('msii-cap-enterado').value)||0;
+  c.capPorEnterar = parseFloat(document.getElementById('msii-cap-porenterar').value)||0;
+  c.capTotal      = c.capEnterado + c.capPorEnterar;
   c.domicilio = document.getElementById('msii-domicilio').value.trim();
   c.sucursal = document.getElementById('msii-sucursal').value.trim();
   // Guardar en localStorage
@@ -2276,10 +2433,13 @@ function guardarEditSII(){
     'Régimen': c.regimen,
     'Representantes': c.reps.map(function(r){return r.nombre;}).join(', '),
     'RUT_Representantes': c.reps.map(function(r){return r.rut||'';}).join(', '),
-    'Socios': c.socios.map(function(s){return s.nombre;}).join(', '),
+    'Socios': c.socios.map(function(s){return s.nombre+(s.pctCap!=null?' ('+((s.pctCap||0)*100).toFixed(1)+'%)':'');}).join(', '),
     'RUT_Socios': c.socios.map(function(s){return s.rut||'';}).join(', '),
     'Domicilio': c.domicilio,
-    'Sucursal': c.sucursal
+    'Sucursal': c.sucursal,
+    'Capital_Enterado': c.capEnterado||0,
+    'Capital_PorEnterar': c.capPorEnterar||0,
+    'Capital_Total': c.capTotal||0
   });
   closeModal('modal-sii-edit');
   renderSII();
@@ -2292,6 +2452,182 @@ function renderConfig(){
   var el = document.getElementById('cfg-usr');
   if(el) el.value = usr;
 }
+
+function renderPersonasRows(tipo, lista){
+  var wrap = document.getElementById('msii-'+tipo+'-wrap');
+  wrap.innerHTML = '';
+  if(!lista.length) lista = [{rut:'',nombre:''}];
+  lista.forEach(function(p, i){
+    var row = document.createElement('div');
+    row.style.cssText = 'display:grid;gap:6px;margin-bottom:4px;padding:8px;background:var(--gray-100);border-radius:var(--rs)';
+    var isSocio = tipo==='socios';
+    row.style.gridTemplateColumns = isSocio ? '130px 1fr 90px 30px' : '130px 1fr 30px';
+    var html =
+      '<input class="form-input" placeholder="RUT" value="'+(p.rut||'')+'">'+
+      '<input class="form-input" placeholder="Nombre completo" value="'+(p.nombre||'')+'">';
+    if(isSocio){
+      html += '<input class="form-input" type="number" min="0" max="100" step="0.01" placeholder="%" value="'+(p.pctCap!=null?(p.pctCap*100).toFixed(2):'')+'" title="% Participación">';
+    }
+    html += '<button type="button" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:16px" onclick="this.parentNode.remove()">✕</button>';
+    row.innerHTML = html;
+    wrap.appendChild(row);
+  });
+}
+
+function leerPersonasRows(tipo){
+  var wrap = document.getElementById('msii-'+tipo+'-wrap');
+  var rows = wrap.querySelectorAll('div');
+  var result = [];
+  rows.forEach(function(row){
+    var inputs = row.querySelectorAll('input');
+    var rut    = inputs[0] ? inputs[0].value.trim() : '';
+    var nombre = inputs[1] ? inputs[1].value.trim() : '';
+    if(!nombre) return;
+    var obj = {rut:rut, nombre:nombre};
+    if(tipo==='socios'){
+      var pct = inputs[2] ? parseFloat(inputs[2].value) : null;
+      var cap = inputs[3] ? parseFloat(inputs[3].value) : null;
+      if(!isNaN(pct) && pct!==null) obj.pctCap = pct/100;
+    }
+    result.push(obj);
+  });
+  return result;
+}
+
+function addRepRow(tipo){
+  renderPersonasRows(tipo, leerPersonasRows(tipo).concat([{rut:'',nombre:'',pctCap:null,capTotal:null}]));
+}
+
+
+// ── CARGA DE EMPRESAS DESDE SHEET ────────────────────────────────────────
+function cargarEmpresas(){
+  apiGet({action:'read', sheet:'Empresas'})
+    .then(function(res){
+      if(res.error || !res.rows || !res.rows.length) return;
+      var rows = res.rows.filter(function(r){ return r['Estado']!=='Inactiva'; });
+      if(!rows.length) return;
+      // Reconstruir COMPANIES desde Sheet
+      COMPANIES.length = 0;
+      rows.forEach(function(r){
+        COMPANIES.push({
+          rut:       r['RUT']||'',
+          razon:     r['Razón Social']||'',
+          cliente:   r['Cliente']||'',
+          regimen:   r['Régimen']||'',
+          reps:      (r['Representantes']||'').split(',').filter(Boolean).map(function(n,i){
+            var ruts=(r['RUT_Representantes']||'').split(',');
+            return {rut:(ruts[i]||'').trim(), nombre:n.trim()};
+          }),
+          socios:    (r['Socios']||'').split(',').filter(Boolean).map(function(n,i){
+            var ruts=(r['RUT_Socios']||'').split(',');
+            return {rut:(ruts[i]||'').trim(), nombre:n.trim()};
+          }),
+          domicilio: r['Domicilio']||'',
+          sucursal:  r['Sucursal']||''
+        });
+      });
+      console.log('✓ '+COMPANIES.length+' sociedades cargadas desde Sheet');
+      // Re-renderizar módulo activo
+      if(document.getElementById('page-sii').classList.contains('active')) renderSII();
+      if(document.getElementById('page-dashboard').classList.contains('active')) renderDash();
+    })
+    .catch(function(){ console.warn('Sin conexión al Sheet — usando datos locales'); });
+}
+
+// ── CREAR NUEVA SOCIEDAD ──────────────────────────────────────────────────
+function guardarNuevaSociedad(){
+  var rut   = document.getElementById('ns-rut').value.trim();
+  var razon = document.getElementById('ns-razon').value.trim();
+  var cli   = document.getElementById('ns-cliente').value;
+  var errEl = document.getElementById('ns-error');
+
+  if(!rut || !razon){
+    errEl.textContent = 'RUT y Razón Social son obligatorios.';
+    errEl.style.display = 'block';
+    return;
+  }
+  if(COMPANIES.find(function(c){return c.rut===rut;})){
+    errEl.textContent = 'Ya existe una sociedad con ese RUT.';
+    errEl.style.display = 'block';
+    return;
+  }
+  errEl.style.display = 'none';
+
+  var nueva = {rut:rut, razon:razon, cliente:cli, regimen:'', reps:[], socios:[], domicilio:'', sucursal:''};
+  COMPANIES.push(nueva);
+
+  // Guardar en Sheet
+  apiPost({action:'upsert', sheet:'Empresas', keyCol:'RUT', keyVal:rut, data:{
+    'RUT':rut, 'Razón Social':razon, 'Cliente':cli, 'Régimen':'',
+    'Representantes':'', 'RUT_Representantes':'', 'Socios':'', 'RUT_Socios':'',
+    'Domicilio':'', 'Sucursal':'', 'Estado':'Activa'
+  }, usuario:localStorage.getItem('tz2_usr')||''})
+  .then(function(res){
+    if(res.ok) toast('✓ Sociedad creada','s');
+    else toast('⚠️ Error al guardar en Sheet','e');
+  }).catch(function(){ toast('⚠️ Sin conexión al Sheet','e'); });
+
+  closeModal('modal-nueva-soc');
+  document.getElementById('ns-rut').value = '';
+  document.getElementById('ns-razon').value = '';
+  document.getElementById('ns-cliente').value = '';
+  renderSII();
+  toast('✓ Sociedad añadida','s');
+}
+
+// ── DESACTIVAR SOCIEDAD (solo Admin) ─────────────────────────────────────
+function eliminarSociedad(rut, razon){
+  if(!esAdmin()){ toast('Solo el Administrador puede desactivar sociedades','e'); return; }
+  if(!confirm('¿Desactivar "'+razon+'"? No aparecerá en ningún módulo.')) return;
+
+  // Quitar de COMPANIES en memoria
+  var idx = COMPANIES.findIndex(function(c){return c.rut===rut;});
+  if(idx>=0) COMPANIES.splice(idx,1);
+
+  // Marcar como Inactiva en Sheet
+  apiPost({action:'upsert', sheet:'Empresas', keyCol:'RUT', keyVal:rut,
+    data:{'RUT':rut,'Estado':'Inactiva'}, usuario:localStorage.getItem('tz2_usr')||''})
+  .then(function(res){
+    if(res.ok) toast('✓ Sociedad desactivada','s');
+  }).catch(function(){});
+
+  renderSII();
+  renderDash();
+}
+
+
+function abrirDesactivarSociedad(){
+  document.getElementById('deact-q').value='';
+  filtrarDeact();
+  openModal('modal-deact-soc');
+}
+function filtrarDeact(){
+  var q=document.getElementById('deact-q').value.toLowerCase();
+  var lista=document.getElementById('deact-lista');
+  var filtered=COMPANIES.filter(function(c){
+    return !q||c.rut.toLowerCase().includes(q)||c.razon.toLowerCase().includes(q);
+  }).slice(0,20);
+  lista.innerHTML=filtered.map(function(c){
+    return '<div style="padding:10px 12px;border-bottom:1px solid var(--gray-200);display:flex;justify-content:space-between;align-items:center">'+
+      '<div><div style="font-weight:500;font-size:13px">'+c.razon+'</div>'+
+      '<div style="font-size:11px;font-family:monospace;color:var(--gray-400)">'+c.rut+'</div></div>'+
+      '<button class="btn btn-secondary btn-sm" style="color:var(--red);flex-shrink:0" data-rut="'+c.rut+'" data-razon="'+c.razon+'" onclick="confirmarDesactivar(this.dataset.rut,this.dataset.razon)">Desactivar</button>'+
+      '</div>';
+  }).join('');
+}
+function confirmarDesactivar(rut,razon){
+  if(!confirm('¿Desactivar "'+razon+'"? No aparecerá en ningún módulo.')) return;
+  eliminarSociedad(rut,razon);
+  closeModal('modal-deact-soc');
+}
+
+
+function calcCapTotal(){
+  var ent = parseFloat(document.getElementById('msii-cap-enterado').value)||0;
+  var por = parseFloat(document.getElementById('msii-cap-porenterar').value)||0;
+  document.getElementById('msii-cap-total').value = ent + por || '';
+}
+
 // INIT
 renderDash();renderConfig();initDJAtPills();
 document.getElementById('at-label').textContent=ATS.join(' · ');
