@@ -2463,7 +2463,7 @@ function renderPersonasRows(tipo, lista){
     var isSocio = tipo==='socios';
     row.style.gridTemplateColumns = isSocio ? '130px 1fr 90px 30px' : '130px 1fr 30px';
     var html =
-      '<input class="form-input" placeholder="RUT" value="'+(p.rut||'')+'">'+
+      '<input class="form-input" placeholder="RUT" value="'+(p.rut||'')+'" oninput="onRutInput(this)" onblur="onRutInput(this)">'+
       '<input class="form-input" placeholder="Nombre completo" value="'+(p.nombre||'')+'">';
     if(isSocio){
       html += '<input class="form-input" type="number" min="0" max="100" step="0.01" placeholder="%" value="'+(p.pctCap!=null?(p.pctCap*100).toFixed(2):'')+'" title="% Participación">';
@@ -2626,6 +2626,38 @@ function calcCapTotal(){
   var ent = parseFloat(document.getElementById('msii-cap-enterado').value)||0;
   var por = parseFloat(document.getElementById('msii-cap-porenterar').value)||0;
   document.getElementById('msii-cap-total').value = ent + por || '';
+}
+
+
+// ── ÍNDICE DE PERSONAS CONOCIDAS ─────────────────────────────────────────
+function buildPersonasIndex(){
+  var idx = {};
+  COMPANIES.forEach(function(c){
+    (c.reps||[]).forEach(function(p){ if(p.rut&&p.nombre) idx[p.rut.trim()] = p.nombre.trim(); });
+    (c.socios||[]).forEach(function(s){ if(s.rut&&s.nombre) idx[s.rut.trim()] = s.nombre.trim(); });
+  });
+  return idx;
+}
+
+function onRutInput(inputEl){
+  var rut = inputEl.value.trim();
+  if(!rut) return;
+  var idx = buildPersonasIndex();
+  // Normalizar RUT para comparar (quitar puntos)
+  var rutNorm = rut.replace(/\./g,'');
+  var nombre = null;
+  Object.keys(idx).forEach(function(k){
+    if(k.replace(/\./g,'') === rutNorm) nombre = idx[k];
+  });
+  if(nombre){
+    // El input de nombre es el siguiente hermano
+    var nombreInput = inputEl.parentNode.querySelectorAll('input')[1];
+    if(nombreInput && !nombreInput.value.trim()){
+      nombreInput.value = nombre;
+      nombreInput.style.background = 'var(--teal-pale)';
+      setTimeout(function(){ nombreInput.style.background = ''; }, 1500);
+    }
+  }
 }
 
 // INIT
