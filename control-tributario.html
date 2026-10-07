@@ -236,6 +236,15 @@ td{padding:9px 12px;color:var(--navy);vertical-align:middle}
     </div>
     <div class="topbar-actions">
       <span id="at-label" style="font-size:11px;color:var(--gray-400);padding:4px 10px;background:var(--gray-100);border-radius:20px;font-weight:500"></span>
+      <div style="position:relative">
+        <span id="usuario-actual" style="font-size:12px;color:var(--gray-600);cursor:pointer;padding:5px 10px;border:1px solid var(--gray-200);border-radius:20px;background:#fff;white-space:nowrap" onclick="toggleUserMenu(event)"></span>
+        <div id="user-menu" style="display:none;position:absolute;top:calc(100% + 6px);right:0;background:#fff;border:1px solid var(--gray-200);border-radius:10px;box-shadow:var(--sh);min-width:170px;z-index:200;overflow:hidden">
+          <div style="padding:10px 14px;font-size:12px;color:var(--gray-400);border-bottom:1px solid var(--gray-200)" id="user-menu-nombre"></div>
+          <button onclick="abrirCambiarClave()" style="width:100%;text-align:left;padding:10px 14px;border:none;background:none;cursor:pointer;font-size:13px;color:var(--navy)">🔑 Cambiar clave</button>
+          <button onclick="pedirClavesSII()" style="width:100%;text-align:left;padding:10px 14px;border:none;background:none;cursor:pointer;font-size:13px;color:var(--navy)">🗝️ Ver claves SII</button>
+          <button onclick="cerrarSesion()" style="width:100%;text-align:left;padding:10px 14px;border:none;background:none;cursor:pointer;font-size:13px;color:var(--red)">🚪 Cerrar sesión</button>
+        </div>
+      </div>
       <button class="btn btn-secondary btn-sm" onclick="exportarExcel()">📤 Exportar</button>
     </div>
   </div>
@@ -297,7 +306,7 @@ td{padding:9px 12px;color:var(--navy);vertical-align:middle}
         <th style="width:36px">N°</th><th style="width:78px">Cliente</th>
         <th style="width:102px">RUT</th><th>Razón Social</th>
         <th style="width:90px">Régimen</th><th style="width:155px">Rep. Legal</th>
-        <th style="width:155px">Socio</th>
+        <th style="width:155px">Socio</th><th style="width:52px">SII</th>
       </tr></thead>
       <tbody id="sii-tbody"></tbody>
     </table></div>
@@ -338,15 +347,8 @@ td{padding:9px 12px;color:var(--navy);vertical-align:middle}
         <button class="btn btn-secondary btn-sm" onclick="limpiarRenta()">✕ Limpiar</button>
         <label class="btn btn-secondary btn-sm" style="cursor:pointer">📥 Importar<input type="file" accept=".xlsx,.xls" style="display:none" onchange="importarRenta(event)"></label>
         <button class="btn btn-teal btn-sm" onclick="abrirModalRenta(null)">✏️ Editar</button>
-          ${esAdmin()?`<button class="btn btn-secondary btn-sm" style="color:var(--red);margin-left:4px" onclick="event.stopPropagation();eliminarSociedad('${c.rut}','${c.razon}')">🗑️ Desactivar</button>`:''}
-          </div>
-        </div>
-      </div></div></td>\`;
-      tb.appendChild(dtr);
-    }
-  });
-}
-
+      </div>
+    </div>
     <div class="legend-row">
       <span style="font-size:11px;color:var(--gray-400);font-weight:600">ESTADOS:</span>
       <div class="legend-item"><span class="sem sem-ok">✓</span> Aceptada</div>
@@ -365,7 +367,7 @@ td{padding:9px 12px;color:var(--navy);vertical-align:middle}
         <th style="width:110px;text-align:center" id="th-at0"></th>
         <th style="width:110px;text-align:center" id="th-at1"></th>
         <th style="width:110px;text-align:center" id="th-at2"></th>
-        
+        <th style="width:50px">SII</th>
       </tr></thead>
       <tbody id="renta-tbody"></tbody>
     </table></div>
@@ -767,7 +769,7 @@ td{padding:9px 12px;color:var(--navy);vertical-align:middle}
         <div style="font-size:12px;font-weight:500;margin-bottom:8px">🏢 Gestión de Sociedades</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn btn-primary btn-sm" onclick="openModal('modal-nueva-soc')">+ Nueva sociedad</button>
-          ${esAdmin()?'<button class="btn btn-secondary btn-sm" style="color:var(--red)" onclick="abrirDesactivarSociedad()">🗑️ Desactivar sociedad</button>':''}
+          <button class="btn btn-secondary btn-sm" style="color:var(--red)" id="btn-deact-soc" onclick="abrirDesactivarSociedad()">🗑️ Desactivar sociedad</button>
         </div>
       </div>
       <div style="border-top:1px solid var(--gray-200);padding-top:16px;margin-top:16px">
@@ -864,6 +866,24 @@ td{padding:9px 12px;color:var(--navy);vertical-align:middle}
 
 <div id="dj-tooltip" class="dj-tooltip"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- MODAL CLAVE SII -->
+<div class="overlay" id="modal-clave-sii">
+  <div class="modal modal-sm" style="max-width:340px;text-align:center">
+    <div class="mh" style="justify-content:center;border-bottom:1px solid var(--gray-200)">
+      <div class="mt">Clave SII</div>
+      <button class="xbtn" onclick="closeModal('modal-clave-sii')">x</button>
+    </div>
+    <div class="mb" style="padding:24px;display:flex;flex-direction:column;gap:14px;align-items:center">
+      <div id="mclave-rut" style="font-family:monospace;font-size:13px;color:var(--gray-400)"></div>
+      <div style="background:var(--gray-100);border-radius:var(--rs);padding:16px 24px;width:100%">
+        <div style="font-size:11px;color:var(--gray-400);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Clave</div>
+        <div id="mclave-clave" style="font-family:monospace;font-size:22px;font-weight:700;color:var(--navy);letter-spacing:3px"></div>
+      </div>
+      <button class="btn btn-primary" style="width:100%" onclick="copiarClaveSII()">Copiar clave</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL EDITAR INFO SII -->
 <div class="overlay" id="modal-sii-edit">
   <div class="modal" style="max-width:560px">
@@ -874,51 +894,31 @@ td{padding:9px 12px;color:var(--navy);vertical-align:middle}
     <div class="mb">
       <div id="msii-rut" style="font-size:11px;color:var(--gray-400);margin-bottom:14px"></div>
       <div class="fg" style="gap:12px;margin-bottom:10px">
-        <div>
-          <label class="form-label">Razón Social</label>
-          <input id="msii-razon" class="form-input" type="text">
-        </div>
-        <div>
-          <label class="form-label">Régimen Tributario</label>
-          <input id="msii-regimen" class="form-input" type="text" placeholder="Ej: 14 A">
-        </div>
+        <div><label class="form-label">Razón Social</label><input id="msii-razon" class="form-input" type="text"></div>
+        <div><label class="form-label">Régimen Tributario</label><input id="msii-regimen" class="form-input" type="text" placeholder="Ej: 14 A"></div>
       </div>
       <div style="margin-bottom:10px">
         <label class="form-label">Representante(s) Legal(es)</label>
+        <div style="font-size:11px;color:var(--gray-400);margin-bottom:4px">RUT · Nombre</div>
         <div id="msii-reps-wrap" style="display:flex;flex-direction:column;gap:6px"></div>
         <button type="button" class="btn btn-secondary btn-sm" style="margin-top:6px" onclick="addRepRow('reps')">+ Agregar representante</button>
       </div>
       <div style="margin-bottom:10px">
         <label class="form-label">Socio(s) / Accionista(s)</label>
-        <div style="font-size:11px;color:var(--gray-400);margin-bottom:4px">RUT · Nombre · % Participación · Capital Total</div>
+        <div style="font-size:11px;color:var(--gray-400);margin-bottom:4px">RUT · Nombre · % Participación</div>
         <div id="msii-socios-wrap" style="display:flex;flex-direction:column;gap:6px"></div>
         <button type="button" class="btn btn-secondary btn-sm" style="margin-top:6px" onclick="addRepRow('socios')">+ Agregar socio</button>
       </div>
       <div style="margin-bottom:10px">
         <label class="form-label">Capital</label>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
-          <div>
-            <label class="form-label" style="font-size:10px">Enterado ($)</label>
-            <input id="msii-cap-enterado" class="form-input" type="number" placeholder="0" oninput="calcCapTotal()">
-          </div>
-          <div>
-            <label class="form-label" style="font-size:10px">Por Enterar ($)</label>
-            <input id="msii-cap-porenterar" class="form-input" type="number" placeholder="0" oninput="calcCapTotal()">
-          </div>
-          <div>
-            <label class="form-label" style="font-size:10px">Total ($)</label>
-            <input id="msii-cap-total" class="form-input" type="number" placeholder="0" readonly style="background:var(--gray-100);color:var(--navy);font-weight:600">
-          </div>
+          <div><label class="form-label" style="font-size:10px">Enterado ($)</label><input id="msii-cap-enterado" class="form-input" type="number" placeholder="0" oninput="calcCapTotal()"></div>
+          <div><label class="form-label" style="font-size:10px">Por Enterar ($)</label><input id="msii-cap-porenterar" class="form-input" type="number" placeholder="0" oninput="calcCapTotal()"></div>
+          <div><label class="form-label" style="font-size:10px">Total ($)</label><input id="msii-cap-total" class="form-input" type="number" placeholder="0" readonly style="background:var(--gray-100);color:var(--navy);font-weight:600"></div>
         </div>
       </div>
-      <div style="margin-bottom:10px">
-        <label class="form-label">Domicilio Principal</label>
-        <input id="msii-domicilio" class="form-input" type="text">
-      </div>
-      <div style="margin-bottom:14px">
-        <label class="form-label">Sucursal</label>
-        <input id="msii-sucursal" class="form-input" type="text">
-      </div>
+      <div style="margin-bottom:10px"><label class="form-label">Domicilio Principal</label><input id="msii-domicilio" class="form-input" type="text"></div>
+      <div style="margin-bottom:14px"><label class="form-label">Sucursal</label><input id="msii-sucursal" class="form-input" type="text"></div>
       <div style="border-top:1px solid var(--gray-200);padding-top:12px;display:flex;gap:8px;justify-content:flex-end">
         <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-sii-edit')">Cancelar</button>
         <button class="btn btn-primary btn-sm" onclick="guardarEditSII()">✓ Guardar</button>
@@ -936,12 +936,8 @@ td{padding:9px 12px;color:var(--navy);vertical-align:middle}
     </div>
     <div class="mb">
       <div class="fg" style="gap:12px;margin-bottom:12px">
-        <div>
-          <label class="form-label">RUT <span style="color:var(--red)">*</span></label>
-          <input id="ns-rut" class="form-input" type="text" placeholder="Ej: 76.123.456-7">
-        </div>
-        <div>
-          <label class="form-label">Cliente</label>
+        <div><label class="form-label">RUT <span style="color:var(--red)">*</span></label><input id="ns-rut" class="form-input" type="text" placeholder="Ej: 76.123.456-7"></div>
+        <div><label class="form-label">Cliente</label>
           <select id="ns-cliente" class="form-select">
             <option value="">Sin asignar</option>
             <option value="Talinay">Talinay</option>
@@ -950,14 +946,11 @@ td{padding:9px 12px;color:var(--navy);vertical-align:middle}
           </select>
         </div>
       </div>
-      <div style="margin-bottom:14px">
-        <label class="form-label">Razón Social <span style="color:var(--red)">*</span></label>
-        <input id="ns-razon" class="form-input" type="text" placeholder="Nombre legal completo">
-      </div>
+      <div style="margin-bottom:14px"><label class="form-label">Razón Social <span style="color:var(--red)">*</span></label><input id="ns-razon" class="form-input" type="text" placeholder="Nombre legal completo"></div>
       <div id="ns-error" style="display:none;color:var(--red);font-size:12px;margin-bottom:10px"></div>
       <div style="border-top:1px solid var(--gray-200);padding-top:12px;display:flex;gap:8px;justify-content:flex-end">
         <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-nueva-soc')">Cancelar</button>
-        <button class="btn btn-primary btn-sm" onclick="guardarNuevaSociedad()">✓ Crear sociedad</button>
+        <button class="btn btn-primary btn-sm" onclick="guardarNuevaSociedad()">✓ Crear</button>
       </div>
     </div>
   </div>
@@ -971,14 +964,12 @@ td{padding:9px 12px;color:var(--navy);vertical-align:middle}
       <button class="xbtn" onclick="closeModal('modal-deact-soc')">✕</button>
     </div>
     <div class="mb">
-      <div style="margin-bottom:12px">
-        <label class="form-label">Buscar sociedad</label>
-        <input id="deact-q" class="form-input" type="text" placeholder="RUT o razón social..." oninput="filtrarDeact()">
-      </div>
+      <div style="margin-bottom:12px"><label class="form-label">Buscar sociedad</label><input id="deact-q" class="form-input" type="text" placeholder="RUT o razón social..." oninput="filtrarDeact()"></div>
       <div id="deact-lista" style="max-height:300px;overflow-y:auto;border:1px solid var(--gray-200);border-radius:var(--rs)"></div>
     </div>
   </div>
 </div>
+
 
 <script>
 const COMPANIES = [{"cliente": "Talinay", "rut": "77.438.078-7", "razon": "Aediles Talinay Chile SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Talinay", "rut": "77.088.094-7", "razon": "Licancabur De Verano SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "77.498.289-2", "nombre": "PMGD Holdco SpA", "pctCap": 1.0, "capTotal": 6604351.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Camino Los Corrales P2 3 #2378 Ciudad Santiago Comuna Padre Hurtado Region Metropolitana"}, {"cliente": "Talinay", "rut": "77.498.289-2", "razon": "PMGD Holdco SpA", "regimen": "14 A", "reps": [{"rut": "9.490.580-K", "nombre": "Pablo Iacobelli Del Rio"}, {"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "77.494.685-3", "nombre": "Fondo De Inversión Falcom Infraestructura Chile II", "pctCap": 1.0, "capTotal": 45627488.0}], "domicilio": "Los Militares 5620 Of 905 Ps 9 Comuna Las Condes Region Metropolitana", "sucursal": ""}, {"cliente": "Talinay", "rut": "76.450.335-K", "razon": "PMGD Mauco SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.760.999-K", "nombre": "Solar E SpA", "pctCap": 1.0, "capTotal": 1826557.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Fundo Las Vacas E Hijuela #Pc 61 La Colonia Ciudad San Felipe Comuna San Felipe Region De Valparaiso"}, {"cliente": "Talinay", "rut": "77.470.274-1", "razon": "Parque Solar Alagua SpA", "regimen": "14 A", "reps": [{"rut": "8.775.619-K", "nombre": "Pablo Leon Ceppi Berdichevsky"}, {"rut": "16.303.396-8", "nombre": "Camila Andrea Alvarez Rojas"}, {"rut": "24.089.898-5", "nombre": "Diego Rodrigo Rausei"}], "socios": [{"rut": "77.180.845-K", "nombre": "Solek Latam Holding SpA", "pctCap": 1.0, "capTotal": 1000.0}], "domicilio": "Los Militares 4765 Of 1501 Ps 15 Comuna Las Condes Region Metropolitana", "sucursal": ""}, {"cliente": "Talinay", "rut": "76.528.806-1", "razon": "Diana Solar SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "77.498.289-2", "nombre": "PMGD Holdco SpA", "pctCap": 1.0, "capTotal": 8172628.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Lote Maria Ines #S/N Ciudad Til Til Comuna Til-Til Region Metropolitana"}, {"cliente": "Talinay", "rut": "76.618.678-5", "razon": "Peteroa Energy SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "77.498.289-2", "nombre": "PMGD Holdco SpA", "pctCap": 1.0, "capTotal": 10007197.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Camino Los Corrales P2 3 #P 2 -3 Ciudad Santiago Comuna Padre Hurtado Region Metropolitana"}, {"cliente": "Talinay", "rut": "76.876.835-8", "razon": "Acotango De Verano SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "77.498.289-2", "nombre": "PMGD Holdco SpA", "pctCap": 1.0, "capTotal": 1225764.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Resto Hij 7 Lt7 - 11 Til #7 Ciudad Los Vilos Comuna Los Vilos Region De Coquimbo"}, {"cliente": "Talinay", "rut": "76.876.858-7", "razon": "Paniri De Verano SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "77.498.289-2", "nombre": "PMGD Holdco SpA", "pctCap": 1.0, "capTotal": 2282791.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Camino Jahuel #S/N Ciudad San Felipe Comuna Santa Maria Region De Valparaiso"}, {"cliente": "Talinay", "rut": "76.991.751-9", "razon": "PMGD Pepa SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "77.498.289-2", "nombre": "PMGD Holdco SpA", "pctCap": 1.0, "capTotal": 4000000.0}], "domicilio": "Flor De Azucenas 111 Of 51 Ps 5 Comuna Las Condes Region Metropolitana", "sucursal": "Balmaceda #3040 La Islita Ciudad Isla De Maipo Comuna Talagante Region Metropolitana"}, {"cliente": "Talinay", "rut": "76.991.760-8", "razon": "PMGD Darlin SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}, {"rut": "17.406.855-0", "nombre": "Jaime Coutts Silva"}], "socios": [{"rut": "77.498.289-2", "nombre": "PMGD Holdco SpA", "pctCap": 1.0, "capTotal": 4000000.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Balmacedad #3040 La Islita Ciudad Santiago Comuna Isla De Maipo Region Metropolitana"}, {"cliente": "Talinay", "rut": "77.257.259-K", "razon": "Solar E SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 7723258.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": ""}, {"cliente": "Talinay", "rut": "76.605.075-1", "razon": "Los Girasoles SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.540.957-8", "nombre": "Trina Solar Systems Chile SpA", "pctCap": 1.0, "capTotal": 3483050.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Parcela #07 El Escudo Chileno Ciudad Curacavi Comuna Curacavi Region Metropolitana"}, {"cliente": "Talinay", "rut": "76.693.239-8", "razon": "PMGD Santuario SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.760.999-K", "nombre": "Solar E SpA", "pctCap": 1.0, "capTotal": 1587741.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Camino De Rinconada A Stg #Sn Auco Ciudad Auco Comuna Rinconada Region De Valparaiso"}, {"cliente": "Talinay", "rut": "76.378.964-0", "razon": "Parque Solar Luna Del Norte SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "59.210.530-6", "nombre": "Danish Climate Investment Fund", "pctCap": 0.49, "capTotal": 1423037.0}, {"rut": "76.760.999-K", "nombre": "Solar E SpA", "pctCap": 0.51, "capTotal": 0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Hijuela Tres #S/N Peralillo Ciudad Coquimbo Comuna Vicuna Region De Coquimbo"}, {"cliente": "Talinay", "rut": "76.228.791-9", "razon": "Parque Solar Sol Del Norte SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "59.210.530-6", "nombre": "Danish Climate Investment Fund", "pctCap": 0.49, "capTotal": 1423014.0}, {"rut": "76.760.999-K", "nombre": "Solar E SpA", "pctCap": 0.51, "capTotal": 0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Hijuela Matta Lote A-1 #S/N Peralillo Ciudad Coquimbo Comuna Vicuna Region De Coquimbo"}, {"cliente": "Talinay", "rut": "76.540.822-9", "razon": "Árbol SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.760.999-K", "nombre": "Solar E SpA", "pctCap": 1.0, "capTotal": 12235928.0}], "domicilio": "Los Militares 5620 Of 905 Ps 9 Comuna Las Condes Region Metropolitana", "sucursal": "Ruta F-850, Km 2,680 #S/N Comuna Casablanca Region De Valparaiso"}, {"cliente": "Talinay", "rut": "76.839.906-9", "razon": "PMGD Cruz SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.634.820-3", "nombre": "Visibility S. A.", "pctCap": 1.0, "capTotal": 3300000.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Parcela 58 La Primavera #58 Depto. #Secto Sector San Roque Ciudad San Felipe Comuna Panquehue Region De Valparaiso"}, {"cliente": "Talinay", "rut": "77.223.376-0", "razon": "Parque Solar Lo Prado SpA", "regimen": "14 A", "reps": [{"rut": "9.490.580-K", "nombre": "Pablo Iacobelli Del Rio"}, {"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 1000.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Parcelacion Rinconada #3 Ciudad Rancagua Comuna Palmilla Region De Ohiggins"}, {"cliente": "Talinay", "rut": "77.223.377-9", "razon": "Parque Solar La Muralla Dos SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 1000.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Predio Santa Eugenia Lote #2 Nancagua Ciudad San Fernando Comuna Nancagua Region De Ohiggins"}, {"cliente": "Talinay", "rut": "76.827.442-8", "razon": "Parque Solar La Rosa SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 1000.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Pc La Justicio Lt B Comuna Llaillay Region De Valparaiso"}, {"cliente": "Talinay", "rut": "77.324.635-1", "razon": "Parque Solar Quilmo SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 1000.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Fdo San Ramon Lt B Comuna Chillan Viejo Region De Ñuble"}, {"cliente": "Talinay", "rut": "76.902.197-3", "razon": "Parque Solar Altos Lao SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 1000.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "La Higuera O Hijela #3 Hacienda La Higuera Ciudad Petorca Comuna La Ligua Region De Valparaiso"}, {"cliente": "Talinay", "rut": "77.465.297-3", "razon": "Parque Solar Jotabeche SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 1000.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Parcelacin Chañarcillo #33A Chañarcillo Ciudad Copiapo Comuna Tierra Amarilla Region De Atacama"}, {"cliente": "Talinay", "rut": "77.470.299-7", "razon": "Parque Solar El Trigal SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 1000.0}], "domicilio": "Flor de Azucenas 111 Of 51 Ps 5 Block #B Depto. #51 Comuna Las Condes Region Metropolitana", "sucursal": "Parcela-Proy Simon Boliva #22 Ciudad San Ignacio Comuna San Ignacio Region De Ñuble"}, {"cliente": "Talinay", "rut": "76.780.504-7", "razon": "Tralka SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "77.498.289-2", "nombre": "PMGD Holdco SpA", "pctCap": 1.0, "capTotal": 51195105.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": ""}, {"cliente": "Talinay", "rut": "76.461.945-5", "razon": "PV La Frontera SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 805432.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Ruta J-76-I, Lote 2 #S/N Fundo Ranguilli Ciudad Lolol Comuna Lolol Region De Ohiggins"}, {"cliente": "Talinay", "rut": "76.805.091-0", "razon": "PV Los Gorriones SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 651506.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Camino Vecinal #Km 1 Ciudad Retiro Comuna Retiro Region Del Maule"}, {"cliente": "Talinay", "rut": "76.845.123-0", "razon": "PV Los Patos SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 645838.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Ruta K-440 Km 6 #Km 6 Ciudad San Rafael Comuna San Rafael Region Del Maule"}, {"cliente": "Talinay", "rut": "76.461.861-0", "razon": "PV Portezuelo SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 548160.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "I-164, Lote 6L #S/N El Chorrillo Ciudad La Estrella Comuna La Estrella Region De Ohiggins"}, {"cliente": "Talinay", "rut": "76.515.583-5", "razon": "PV Libertadores SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 1536197.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Hijuela 14, San Roberto #14 San Roberto Tuniche Ciudad Rancagua Comuna Graneros Region De Ohiggins"}, {"cliente": "Talinay", "rut": "76.744.083-9", "razon": "PV El Pilpen SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 674052.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Ruta G-74 #S/N Ciudad Maria Pinto Comuna Maria Pinto Region Metropolitana"}, {"cliente": "Talinay", "rut": "76.805.093-7", "razon": "PV El Cernicalo SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 707066.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Ruta N 50 #Km 31 Ciudad Ninhue Comuna Ninhue Region De Ñuble"}, {"cliente": "Talinay", "rut": "76.367.198-4", "razon": "Parque Solar Cuz Cuz SpA", "regimen": "14 A", "reps": [{"rut": "9.490.580-K", "nombre": "Pablo Iacobelli Del Rio"}, {"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 699832.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Lote Agua Buena #3A Bellavista Ciudad Illapel Comuna Illapel Region De Coquimbo"}, {"cliente": "Talinay", "rut": "76.730.378-5", "razon": "PV Las Turcas SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 721916.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Ruta G-772 #1130 Ciudad Melipilla Comuna Melipilla Region Metropolitana"}, {"cliente": "Talinay", "rut": "76.744.082-0", "razon": "PV El Queltehue SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 696413.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Ruta G-74 #7663 Ciudad Melipilla Comuna Melipilla Region Metropolitana"}, {"cliente": "Talinay", "rut": "76.567.528-6", "razon": "PV Chancon SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 552742.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Parcela 32 Lote B #S/N Chancon Ciudad Rancagua Comuna Rancagua Region De Ohiggins"}, {"cliente": "Talinay", "rut": "76.830.065-8", "razon": "PV El Pitio SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 648947.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Parcela 215 Villa Longavi #215 Ciudad Longavi Comuna Longavi Region Del Maule"}, {"cliente": "Talinay", "rut": "76.845.124-9", "razon": "PV Las Palomas SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 690199.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Camino N-601 Km 1 #1 Ciudad Bulnes Comuna Bulnes Region De Ñuble"}, {"cliente": "Talinay", "rut": "76.860.789-3", "razon": "PV El Picurio SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 701474.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Parcela 33-B, Ruta I-912 #Km 1 Ciudad Chimbarongo Comuna Chimbarongo Region De Ohiggins"}, {"cliente": "Talinay", "rut": "76.462.109-3", "razon": "PV Rodeo SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 663047.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Parcela 11-B Y Parcela 5 #S/N Los Corrales Ciudad San Felipe Comuna Catemu Region De Valparaiso"}, {"cliente": "Talinay", "rut": "76.860.793-1", "razon": "PV El Chincol SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 753197.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Parcela N11 Nueva Esperan #R-240M Ciudad Niquen Comuna Niquen Region De Ñuble"}, {"cliente": "Talinay", "rut": "76.451.214-6", "razon": "PV Rovian SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 1680486.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Parcela #11 El Aromo Ciudad Nancagua Comuna Nancagua Region De Ohiggins"}, {"cliente": "Talinay", "rut": "76.748.838-6", "razon": "PV Doñihue SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 1921941.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "La Cabreria #S/N Ciudad Rancagua Comuna Coinco Region De Ohiggins"}, {"cliente": "Talinay", "rut": "77.810.911-5", "razon": "Antu Energy SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "77.498.289-2", "nombre": "PMGD Holdco SpA", "pctCap": 1.0, "capTotal": 8125.0}], "domicilio": "Flor de Azucenas 111 Of 51 Ps 5 Block #B Depto. #51 Comuna Las Condes Region Metropolitana", "sucursal": ""}, {"cliente": "Talinay", "rut": "77.379.321-2", "razon": "Malloco Solar SpA", "regimen": "14 D Nº3", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "77.794.929-2", "nombre": "Inversiones Malloco SpA", "pctCap": 1.0, "capTotal": 500.0}], "domicilio": "Los Militares 5620 Of 905 Ps 9 Comuna Las Condes Region Metropolitana", "sucursal": "Av Pajaritos #Sn Fundo El Huingan Ciudad Santiago Comuna Penaflor Region Metropolitana"}, {"cliente": "Talinay", "rut": "77.479.026-8", "razon": "Amanecer Solar SpA", "regimen": "14 D Nº3", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "77.794.931-4", "nombre": "Inversiones Amanecer SpA", "pctCap": 1.0, "capTotal": 500.0}], "domicilio": "Los Militares 5620 Of 905 Ps 9 Comuna Las Condes Region Metropolitana", "sucursal": "4,5 Km Este Sierragordapl 9242 Comuna Sierra Gorda Region De Antofagasta"}, {"cliente": "Talinay", "rut": "77.131.386-8", "razon": "La Sierra SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.522.352-0", "nombre": "Inversiones Los Sauces SpA", "pctCap": 1.0, "capTotal": 500.0}], "domicilio": "Los Militares 5620 Of 905 Ps 9 Comuna Las Condes Region Metropolitana", "sucursal": ""}, {"cliente": "Talinay", "rut": "76.966.021-6", "razon": "El Cóndor Solar SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.522.348-2", "nombre": "Solar Uno SpA", "pctCap": 1.0, "capTotal": 500.0}], "domicilio": "Los Militares 5620 Of 905 Ps 9 Comuna Las Condes Region Metropolitana", "sucursal": ""}, {"cliente": "Talinay", "rut": "77.240.056-K", "razon": "Porota Solar SpA", "regimen": "14 A", "reps": [{"rut": "16.006.719-5", "nombre": "Francisco Eduardo Yañez Espinosa"}], "socios": [{"rut": "76.522.352-0", "nombre": "Inversiones Los Sauces SpA", "pctCap": 1.0, "capTotal": 1000.0}], "domicilio": "Los Militares 5620 Of 905 Ps 9 Comuna Las Condes Region Metropolitana", "sucursal": ""}, {"cliente": "Talinay", "rut": "77.324.561-4", "razon": "Parque Solar La Rosa II SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "77.498.289-2", "nombre": "PMGD Holdco SpA", "pctCap": 1.0, "capTotal": 1000.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Hijuela #06 Ciudad Cachapoal Comuna San Vicente Region De Ohiggins"}, {"cliente": "Talinay", "rut": "77.324.643-2", "razon": "Parque Solar Villa Longaví SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "77.810.911-5", "nombre": "Antu Energy SpA", "pctCap": 1.0, "capTotal": 1000.0}], "domicilio": "Flor De Azucenas 111 Of 51 Ps 5 Comuna Las Condes Region Metropolitana", "sucursal": "Hijuela 01, Parcela #49 Longavi Ciudad Linares Comuna Longavi Region Del Maule"}, {"cliente": "Talinay", "rut": "76.930.379-0", "razon": "Parque Solar Convento SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "77.810.911-5", "nombre": "Antu Energy SpA", "pctCap": 1.0, "capTotal": 1000.0}], "domicilio": "Flor de Azucenas 111 Of 51 Ps 5 Block #B Depto. #51 Comuna Las Condes Region Metropolitana", "sucursal": "Fundo San Bernardo Sur #S/N Parcela C Ciudad Chillan Comuna Chillan Region De Ñuble"}, {"cliente": "Talinay", "rut": "77.465.299-K", "razon": "Parque Solar Roma SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "77.810.911-5", "nombre": "Antu Energy SpA", "pctCap": 1.0, "capTotal": 1000.0}], "domicilio": "Flor De Azucenas 111 Of 51 Ps 5 Comuna Las Condes Region Metropolitana", "sucursal": "Chacra San Jose Roma Block #S/N Depto. #S/N Comuna San Fernando Region De Ohiggins"}, {"cliente": "Talinay", "rut": "77.465.291-4", "razon": "Parque Solar Doña Berta SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "77.810.911-5", "nombre": "Antu Energy SpA", "pctCap": 1.0, "capTotal": 1000.0}], "domicilio": "Flor De Azucenas 111 Of 51 Ps 5 Comuna Las Condes Region Metropolitana", "sucursal": "El Palomar Hj.E-Resto Comuna Quillota Region De Valparaiso"}, {"cliente": "RRG", "rut": "77.050.590-9", "razon": "RRG Chile SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "RRG", "rut": "77.826.634-2", "razon": "RRG Chile Consulting SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "RRG", "rut": "76.960.318-2", "razon": "Huemul Chile SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "RRG", "rut": "77.050.587-9", "razon": "Raíces de Capital SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "RRG", "rut": "76.930.611-0", "razon": "El Retorno SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "RRG", "rut": "77.398.395-K", "razon": "Corylus OpCo SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "RRG", "rut": "77.398.394-1", "razon": "Corylus LandCo SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "RRG", "rut": "77.122.311-7", "razon": "Persea OpCo SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "RRG", "rut": "77.359.669-7", "razon": "Agrícola Koompartu SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "RRG", "rut": "77.359.667-0", "razon": "Agrícola Nambucca SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "RRG", "rut": "76.528.525-9", "razon": "Parronales Tinamou Limitada", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "RRG", "rut": "77.282.219-7", "razon": "Tunki Holdings SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "RRG", "rut": "76.963.336-7", "razon": "Cedars Solar SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "RRG", "rut": "76.618.669-6", "razon": "Lascar Energy SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "RRG", "rut": "76.618.666-1", "razon": "Puntiagudo Energy SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "76.411.169-9", "razon": "Solek Chile Services SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "76.415.378-2", "razon": "Solek Chile Holding SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.193.932-5", "razon": "Solek Chile Holding Iv SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.332.844-7", "razon": "Solek Chile Holding V SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.180.845-K", "razon": "Solek Latam Holding SpA (Latam)", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.363.438-6", "razon": "Solek Alpha SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "76.630.094-4", "razon": "Solek Alpha Ii SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.826.642-3", "razon": "Solek Ipp I SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.826.644-K", "razon": "Solek Ipp Ii SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.465.295-7", "razon": "Parque Solar Doña Carmen SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "76.930.369-3", "razon": "Parque Solar Mina Dorada SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.218.603-7", "razon": "Champa Solar SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.324.537-1", "razon": "Parque Solar Don Chacho SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.324.558-4", "razon": "Parque Solar Kali SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "76.951.371-K", "razon": "Fenix Solar SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.470.297-0", "razon": "Parque Solar Del Sol SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.470.353-5", "razon": "Parque Solar Santa Rebeca SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.089.188-4", "razon": "Santa Barbara SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.084.914-4", "razon": "Armando Solar SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "76.888.367-k", "razon": "Margarita Solar SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "76.939.907-0", "razon": "Parque Solar Panguilemo SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.450.362-5", "razon": "Parque Solar Conty SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.450.365-K", "razon": "Parque Solar Karelia SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.450.379-K", "razon": "Parque Solar San Lorenzo SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.454.421-6", "razon": "Parque Solar Concon SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.454.459-3", "razon": "Parque Solar Tara SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.101.918-8", "razon": "Parral Solar SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "76.930.384-7", "razon": "Parque Solar El Gultro SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "76.871.328-6", "razon": "Parque Solar Los Peumos SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "76.871.347-2", "razon": "Parque Solar Colimavilla SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.218.637-1", "razon": "Limache Solar SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.324.634-3", "razon": "Parque Solar Linares Norte SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.324.522-3", "razon": "Parque Solar El Caqui SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.324.631-9", "razon": "Parque Solar Campanas SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.470.336-5", "razon": "Parque Solar Eulalia SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.324.639-4", "razon": "Parque Solar Trupan SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.470.348-9", "razon": "Parque Solar Numpay SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.470.352-7", "razon": "Parque Solar Santa Marta SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.101.919-6", "razon": "Humberto Solar SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.470.341-1", "razon": "Parque Solar La Esperanza SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.070.956-3", "razon": "Renato Solar SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.107.808-7", "razon": "Pilar Solar SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.470.295-4", "razon": "Parque Solar Barrancón SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.470.342-K", "razon": "Parque Solar Los Olivos SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.474.766-4", "razon": "Parque Solar Requegua SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.826.646-6", "razon": "Solek Dev Holding SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.470.343-8", "razon": "Bess San Rafael SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.470.292-K", "razon": "Parque Solar Badajoz SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.470.276-8", "razon": "Parque Solar Andromeda SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.470.271-7", "razon": "Parque Solar Aguas Buenas SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.470.344-6", "razon": "Parque Solar Miño SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.470.351-9", "razon": "Parque Solar Peumo SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.454.426-7", "razon": "Parque Solar Laja SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.454.403-8", "razon": "Parque Solar Carrizo SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.454.399-6", "razon": "Parque Solar Atacama SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.470.338-1", "razon": "Parque Solar La Chalinga SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.470.347-0", "razon": "Parque Solar Narciso SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.474.761-3", "razon": "Parque Solar Popeta SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}];
@@ -988,8 +979,6 @@ const DJ_BASE = {"dj_cols": ["F1811", "F1812", "F1820", "F1822", "F1828", "F1829
 function lsGet(k){try{return JSON.parse(localStorage.getItem(k));}catch{return null;}}
 function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch{}}
 
-const _savedCompanies = lsGet('tz2_companies');
-if(_savedCompanies) COMPANIES.forEach(function(c,i){const s=_savedCompanies.find(function(x){return x.rut===c.rut;});if(s) COMPANIES[i]=s;});
 let RENTA = lsGet('tz2_renta') || JSON.parse(JSON.stringify(RENTA_BASE));
 
 // Migrar DJ_DATA al formato multi-año si viene del formato antiguo
@@ -1194,7 +1183,7 @@ function renderSII(){
       <td>${regBadge(c.regimen)}</td>
       <td style="font-size:11px;color:var(--gray-600)">${repS}</td>
       <td style="font-size:11px;color:var(--gray-600)">${socS}</td>
-      `;
+      <td><button class="sii-link" style="background:none;border:none;cursor:pointer;font-size:16px;opacity:.7;transition:opacity .15s" onclick="event.stopPropagation();abrirSII('${c.rut}','https://zeusr.sii.cl//AUT2000/InicioAutenticacion/IngresoRutClave.html?https://misiir.sii.cl/cgi_misii/siihome.cgi')" title="Abrir Mi SII (copiará el RUT)">🌐</button></td>`;
     tr.addEventListener('click',()=>{siiExp=siiExp===c.rut?null:c.rut;renderSII();});
     tb.appendChild(tr);
     if(isE){
@@ -1206,8 +1195,10 @@ function renderSII(){
         <div class="detail-section"><h3>Socios vigentes</h3>${socs}</div>
         <div class="detail-section"><h3>Domicilio principal</h3><div class="detail-item">${c.domicilio||'—'}</div></div>
         <div class="detail-section"><h3>Sucursal</h3><div class="detail-item">${c.sucursal||'—'}</div>
-          <div style="margin-top:10px"><button class="btn btn-secondary btn-sm" onclick="abrirSII('${c.rut}','https://zeusr.sii.cl//AUT2000/InicioAutenticacion/IngresoRutClave.html?https://misiir.sii.cl/cgi_misii/siihome.cgi')">🌐 Abrir Mi SII</button>
-          <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();abrirEditSII('${c.rut}')">✏️ Editar</button></div>
+          <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+            <button class="btn btn-secondary btn-sm" onclick="abrirSII('${c.rut}','https://zeusr.sii.cl//AUT2000/InicioAutenticacion/IngresoRutClave.html?https://misiir.sii.cl/cgi_misii/siihome.cgi')">🌐 Abrir Mi SII</button>
+            <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();abrirEditSII('${c.rut}')">✏️ Editar</button>
+          </div>
         </div>
       </div></div></td>`;
       tb.appendChild(dtr);
@@ -1266,7 +1257,7 @@ function renderRenta(){
       <td style="text-align:center">${semR(ge('at1'),`event.stopPropagation();abrirObs('${c.rut}','${c.razon}',0)`)}</td>
       <td style="text-align:center">${semR(ge('at2'),`event.stopPropagation();abrirObs('${c.rut}','${c.razon}',1)`)}</td>
       <td style="text-align:center">${semR(ge('at3'),`event.stopPropagation();abrirObs('${c.rut}','${c.razon}',2)`)}</td>
-      `;
+      <td><button style="background:none;border:none;cursor:pointer;font-size:16px;color:#2952a3;opacity:.7;transition:opacity .15s" onclick="event.stopPropagation();abrirSII('${c.rut}','https://zeusr.sii.cl/AUT2000/InicioAutenticacion/IngresoRutClave.html?https://www4.sii.cl/consultaestadof22ui/')" title="Abrir Estado Renta en SII (copiará el RUT)">🌐</button></td>`;
     tr.addEventListener('click',()=>{rentaExp=rentaExp===c.rut?null:c.rut;renderRenta();});
     tb.appendChild(tr);
     if(isE){
@@ -1340,11 +1331,6 @@ function guardarRenta(){
   });
   RENTA[rut]._updated=new Date().toISOString();RENTA[rut]._updatedBy=localStorage.getItem('tz2_usr')||'Sin nombre';
   saveRenta();closeModal('modal-renta');renderRenta();renderDash();toast('✓ Renta guardada','s');
-  var estadoLabel={'3':'Aceptada','2':'Con observaciones','1':'Inconsistencias','0':'No aplica','-1':'Sin datos'};
-  ['at1','at2','at3'].forEach(function(atk,i){
-    var est=RENTA[rut][atk].estado;
-    syncSheet('renta',rut+'-'+ATS[i],{RUT:rut,AT:ATS[i],Estado:estadoLabel[String(est)]||String(est),EstadoCod:est,Observacion:RENTA[rut][atk].obs||''});
-  });
 }
 
 // IMPORTAR RENTA
@@ -1566,8 +1552,6 @@ function guardarEditDJ(){
   DJ_DATA[rut]._updated=new Date().toISOString();
   saveDJ(); closeModal('modal-dj-edit'); renderDJ(); renderDash();
   toast('✓ DJ guardada','s');
-  const djLabels={'1':'Aceptada','2':'Con observaciones','0':'Pendiente','-1':'No aplica'};
-  syncSheet('dj',rut+'-'+atk+'-'+dj,{RUT:rut,AT:atk,Formulario:dj,Estado:djLabels[String(est)]||String(est),EstadoCod:est,Observacion:obs});
 }
 
 // ── Modal configurar DJs asignadas ───────────────────────────────────────
@@ -1594,8 +1578,7 @@ function guardarCfgDJ(){
   const nuevas=[...checks].map(c=>c.value);
   if(!DJ_DATA[cfgRut]) DJ_DATA[cfgRut]={at1:{},at2:{},at3:{},obs_general:'',djs_asignadas:[]};
   DJ_DATA[cfgRut].djs_asignadas=nuevas;
-  saveDJ();
-  // sync con Sheet se hace al guardar DJ individual closeModal('modal-dj-cfg'); renderDJ();
+  saveDJ(); closeModal('modal-dj-cfg'); renderDJ();
   toast(`✓ ${nuevas.length} DJ asignadas`,'s');
 }
 
@@ -1662,92 +1645,28 @@ function resetData(){
 
 // EXPORTAR
 function exportarExcel(){
-  var wb = XLSX.utils.book_new();
-
-  // ── HOJA RENTA ────────────────────────────────────────────────────────
-  var estRenta={'3':'Aceptada','2':'Con observaciones','1':'Observada / Inconsistencias','0':'No aplica','-1':'Sin datos'};
-  var rentaRows = [];
-
-  // Fila 1: título
-  rentaRows.push(['ESTADO DECLARACIONES DE RENTA','','','','',
-    '','','','','','',
-    'Datos','',
-    3,'Aceptada']);
-  rentaRows.push(['','','','','','','','','','','','',2,'Con observaciones']);
-  rentaRows.push(['','','','','','','','','','','','',1,'Observada / Inconsistencias']);
-  // Fila 5: cabecera
-  rentaRows.push(['','','','','']);
-  rentaRows.push(['N°','Grupo','Código','RUT','Razón Social',
-    ATS[0],'',ATS[1],'',ATS[2],'',
-    '','',0,'No aplica']);
-
-  var n=0;
-  ['Talinay','RRG','Solek'].forEach(function(cliente){
-    var emps=COMPANIES.filter(function(c){return c.cliente===cliente;});
-    if(!emps.length) return;
-    rentaRows.push([cliente.toUpperCase(),'','','','','','','','','','']);
-    emps.forEach(function(c){
-      n++;
-      var r=RENTA[c.rut]||{};
-      var row=[n,cliente,'',c.rut,c.razon];
-      ['at1','at2','at3'].forEach(function(k){
-        var est=r[k]?r[k].estado:-1;
-        var obs=r[k]?r[k].obs||'':'';
-        row.push(estRenta[String(est)]||'Sin datos',obs);
-      });
-      rentaRows.push(row);
-    });
+  const est={3:'Aceptada',2:'Con observaciones',1:'Inconsistencias',0:'No aplica'};
+  const wsData=[['Cliente','RUT','Razón Social',...ATS.flatMap(at=>[at+' Estado',at+' Observación'])]];
+  COMPANIES.forEach(c=>{
+    const r=RENTA[c.rut];
+    wsData.push([c.cliente,c.rut,c.razon,...['at1','at2','at3'].flatMap(k=>[r?est[r[k]?.estado]??'Sin datos':'Sin datos',r?r[k]?.obs||'':''])]);
   });
-
-  var wsRenta = XLSX.utils.aoa_to_sheet(rentaRows);
-  wsRenta['!cols']=[{wch:5},{wch:10},{wch:8},{wch:14},{wch:35},{wch:20},{wch:45},{wch:20},{wch:45},{wch:20},{wch:45}];
-  wsRenta['!merges']=[
-    {s:{r:0,c:0},e:{r:0,c:4}},  // título
-    {s:{r:4,c:5},e:{r:4,c:6}},  // AT-2026
-    {s:{r:4,c:7},e:{r:4,c:8}},  // AT-2025
-    {s:{r:4,c:9},e:{r:4,c:10}}  // AT-2024
-  ];
-  XLSX.utils.book_append_sheet(wb,wsRenta,'Estado Renta');
-
-  // ── HOJA DJ ───────────────────────────────────────────────────────────
-  var estDJ={'1':'Aceptada','2':'Con observaciones','0':'Pendiente','-1':'No aplica','-2':'Sin datos'};
-  var djRows = [];
-
-  // Fila 1: título
-  djRows.push(['ESTADO DECLARACIONES JURADAS','','','','','','']);
-  // Leyenda
-  djRows.push(['','','','','','',1,'Aceptada']);
-  djRows.push(['','','','','','',2,'Con observaciones']);
-  djRows.push(['','','','','','',0,'Pendiente']);
-  djRows.push(['','','','','','',-1,'No aplica']);
-  // Cabecera
-  djRows.push(['N°','Cliente','RUT','Razón Social','Formulario','Descripción','Estado','Observación']);
-
-  var m=0;
-  ['Talinay','RRG','Solek'].forEach(function(cliente){
-    var emps=COMPANIES.filter(function(c){return c.cliente===cliente;});
-    if(!emps.length) return;
-    djRows.push([cliente.toUpperCase(),'','','','','','','']);
-    emps.forEach(function(c){
-      var d=DJ_DATA[c.rut];
-      var djs=d?d.djs||{}:{};
-      Object.keys(djs).sort().forEach(function(dj){
-        m++;
-        var info=djs[dj]||{};
-        var est=info.estado!=null?info.estado:-2;
-        var obs=info.obs||'';
-        var desc=DJ_SHORT[dj]||dj;
-        djRows.push([m,cliente,c.rut,c.razon,dj,desc,estDJ[String(est)]||'Sin datos',obs]);
-      });
-    });
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.aoa_to_sheet(wsData);
+  ws['!cols']=[{wch:10},{wch:14},{wch:42},{wch:14},{wch:60},{wch:14},{wch:60},{wch:14},{wch:60}];
+  XLSX.utils.book_append_sheet(wb,ws,'Estado Renta');
+  // Hoja DJ
+  const djData=[['Cliente','RUT','Razón Social','Obs. General',...DJ_TYPES]];
+  COMPANIES.forEach(c=>{
+    const d=DJ_DATA[c.rut];
+    djData.push([c.cliente,c.rut,c.razon,d?d.obs_general||'':'',...DJ_TYPES.map(dj=>{
+      const e=d?.djs?.[dj]?.estado;
+      return e===1?'Aceptada':e===0?'Pendiente':'No aplica';
+    })]);
   });
-
-  var wsDJ = XLSX.utils.aoa_to_sheet(djRows);
-  wsDJ['!cols']=[{wch:5},{wch:10},{wch:14},{wch:35},{wch:10},{wch:30},{wch:18},{wch:55}];
-  wsDJ['!merges']=[{s:{r:0,c:0},e:{r:0,c:5}}];
-  XLSX.utils.book_append_sheet(wb,wsDJ,'Estado DJ');
-
-  XLSX.writeFile(wb,'Terrazul_Control_'+new Date().toISOString().slice(0,10)+'.xlsx');
+  const ws2=XLSX.utils.aoa_to_sheet(djData);
+  XLSX.utils.book_append_sheet(wb,ws2,'DJ AT-'+ATS[0].split('-')[1]);
+  XLSX.writeFile(wb,'terrazul_control_'+new Date().toISOString().slice(0,10)+'.xlsx');
   toast('✓ Excel exportado (Renta + DJ)','s');
 }
 
@@ -1893,7 +1812,7 @@ function renderIVA(){
           </table>
         </div>
         <div style="margin-top:10px;display:flex;gap:6px">
-          
+          <button class="btn btn-secondary btn-sm" onclick="abrirSII('${c.rut}','https://zeusr.sii.cl//AUT2000/InicioAutenticacion/IngresoRutClave.html?https://misiir.sii.cl/cgi_misii/siihome.cgi')">🌐 Ver en SII</button>
         </div>
       </div>`;
     wrap.appendChild(card);
@@ -1936,8 +1855,6 @@ function guardarIVA(){
   else IVA_DATA[rut][anio][mes]={estado:est,obs};
   saveIVA(); closeModal('modal-iva-edit'); renderIVA();
   toast('✓ F29 guardado','s');
-  const ivaLabels={'1':'Aceptada','2':'Con impugnación','0':'Pendiente','-1':'No aplica','-2':'Sin datos'};
-  syncSheet('iva',rut+'-'+anio+'-'+mes,{RUT:rut,Anio:anio,Mes:IVA_MESES[mes],Estado:ivaLabels[String(est)]||String(est),EstadoCod:est,Observacion:obs});
 }
 
 // ═══════════════════════════════════════════════════════
@@ -2075,7 +1992,7 @@ function renderPat(){
         ${renderRebajaResumen(c.rut)}
         <div style="display:flex;gap:6px;margin-top:8px">
           <button class="btn btn-secondary btn-sm" onclick="abrirRebaja('${c.rut}','${c.razon}')">✏️ Editar rebajas</button>
-          
+          <button class="btn btn-secondary btn-sm" onclick="abrirSII('${c.rut}','https://zeusr.sii.cl//AUT2000/InicioAutenticacion/IngresoRutClave.html?https://misiir.sii.cl/cgi_misii/siihome.cgi')">🌐 Ver en SII</button>
         </div>
 
       </div>`;
@@ -2137,7 +2054,6 @@ function guardarPatente(){
   else PAT_DATA[rut].patentes.push(p);
   savePat(); closeModal('modal-pat-edit'); renderPat();
   toast('✓ Patente guardada','s');
-  syncSheet('patentes',rut+'-'+(p.tipo||'').replace(/ /g,'-'),{RUT:rut,Tipo:p.tipo,Comuna:p.comuna,Rol:p.rol,Estado:p.estado,Observacion:p.obs||''});
 }
 
 // ── Trabajadores ──────────────────────────────────────────────────────────
@@ -2313,355 +2229,225 @@ var CLAVES_SII = {};
 
 function apiGet(params){
   var url=API_URL+'?'+Object.keys(params).map(function(k){return k+'='+encodeURIComponent(params[k]);}).join('&');
-  return fetch(url, {redirect:'follow', mode:'cors'}).then(function(r){return r.json();});
+  return fetch(url,{redirect:'follow',mode:'cors'}).then(function(r){return r.json();});
 }
 function apiPost(data){
-  return fetch(API_URL, {
-    method:'POST',
-    redirect:'follow',
-    mode:'cors',
-    headers:{'Content-Type':'text/plain'},
-    body:JSON.stringify(data)
-  }).then(function(r){return r.json();});
+  return fetch(API_URL,{method:'POST',redirect:'follow',mode:'cors',headers:{'Content-Type':'text/plain'},body:JSON.stringify(data)}).then(function(r){return r.json();});
 }
 function syncSheet(modulo,rut,data){
   var sheets={renta:'Renta',dj:'DJ',iva:'IVA',patentes:'Patentes',sii:'Empresas'};
   var sheet=sheets[modulo];
-  if(!sheet){ console.warn('syncSheet: módulo no reconocido:',modulo); return; }
-  var usuario=localStorage.getItem('tz2_usr')||localStorage.getItem('terrazul_usuario')||'';
-  console.log('syncSheet →',sheet,rut,data);
+  if(!sheet) return;
+  var usuario=localStorage.getItem('tz2_usr')||'';
   apiPost({action:'upsert',sheet:sheet,keyCol:'RUT',keyVal:rut,data:data,usuario:usuario})
     .then(function(res){
-      console.log('syncSheet response:',res);
-      if(res && res.ok) toast('☁️ Guardado en Sheet','s');
-      else toast('⚠️ Error Sheet: '+((res&&res.error)||'desconocido'),'e');
-    })
-    .catch(function(e){ toast('⚠️ Sin conexión al Sheet','e'); console.error('syncSheet error:',e); });
+      if(res&&res.ok) toast('☁️ Guardado en Sheet','s');
+      else toast('⚠️ Error Sheet: '+((res&&res.error)||'?'),'e');
+    }).catch(function(){ toast('⚠️ Sin conexión al Sheet','e'); });
   apiPost({action:'log',usuario:usuario,modulo:modulo,rut:rut,accion:'Actualización',detalle:JSON.stringify(data).substring(0,200)}).catch(function(){});
 }
-function cargarClavesSII(claveAcceso){
-  apiGet({action:'claves',usuario:localStorage.getItem('terrazul_usuario')||'',clave_acceso:claveAcceso})
+function cargarEmpresas(){
+  apiGet({action:'read',sheet:'Empresas'})
     .then(function(res){
-      if(res.claves){CLAVES_SII=res.claves;toast('Claves SII cargadas','s');}
-      else toast('Sin autorización','e');
-    }).catch(function(){toast('Error al cargar claves','e');});
+      if(res.error||!res.rows||!res.rows.length) return;
+      var rows=res.rows.filter(function(r){return r['Estado']!=='Inactiva';});
+      if(!rows.length) return;
+      COMPANIES.length=0;
+      rows.forEach(function(r){
+        COMPANIES.push({
+          rut:r['RUT']||'',razon:r['Razón Social']||'',cliente:r['Cliente']||'',
+          regimen:r['Régimen']||'',
+          reps:(r['Representantes']||'').split(',').filter(Boolean).map(function(n,i){
+            var ruts=(r['RUT_Representantes']||'').split(',');
+            return {rut:(ruts[i]||'').trim(),nombre:n.trim()};
+          }),
+          socios:(r['Socios']||'').split(',').filter(Boolean).map(function(n,i){
+            var ruts=(r['RUT_Socios']||'').split(',');
+            return {rut:(ruts[i]||'').trim(),nombre:n.trim()};
+          }),
+          capEnterado:parseFloat(r['Capital_Enterado'])||0,
+          capPorEnterar:parseFloat(r['Capital_PorEnterar'])||0,
+          capTotal:parseFloat(r['Capital_Total'])||0,
+          domicilio:r['Domicilio']||'',sucursal:r['Sucursal']||''
+        });
+      });
+      if(document.getElementById('page-sii').classList.contains('active')) renderSII();
+      if(document.getElementById('page-dashboard').classList.contains('active')) renderDash();
+    }).catch(function(){});
 }
-
-
-// Función para poblar hoja Empresas en Google Sheet
-function poblarEmpresasSheet(){
-  var empresas = [{"cliente": "Talinay", "rut": "77.438.078-7", "razon": "Aediles Talinay Chile SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Talinay", "rut": "77.088.094-7", "razon": "Licancabur De Verano SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "77.498.289-2", "nombre": "PMGD Holdco SpA", "pctCap": 1.0, "capTotal": 6604351.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Camino Los Corrales P2 3 #2378 Ciudad Santiago Comuna Padre Hurtado Region Metropolitana"}, {"cliente": "Talinay", "rut": "77.498.289-2", "razon": "PMGD Holdco SpA", "regimen": "14 A", "reps": [{"rut": "9.490.580-K", "nombre": "Pablo Iacobelli Del Rio"}, {"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "77.494.685-3", "nombre": "Fondo De Inversión Falcom Infraestructura Chile II", "pctCap": 1.0, "capTotal": 45627488.0}], "domicilio": "Los Militares 5620 Of 905 Ps 9 Comuna Las Condes Region Metropolitana", "sucursal": ""}, {"cliente": "Talinay", "rut": "76.450.335-K", "razon": "PMGD Mauco SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.760.999-K", "nombre": "Solar E SpA", "pctCap": 1.0, "capTotal": 1826557.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Fundo Las Vacas E Hijuela #Pc 61 La Colonia Ciudad San Felipe Comuna San Felipe Region De Valparaiso"}, {"cliente": "Talinay", "rut": "77.470.274-1", "razon": "Parque Solar Alagua SpA", "regimen": "14 A", "reps": [{"rut": "8.775.619-K", "nombre": "Pablo Leon Ceppi Berdichevsky"}, {"rut": "16.303.396-8", "nombre": "Camila Andrea Alvarez Rojas"}, {"rut": "24.089.898-5", "nombre": "Diego Rodrigo Rausei"}], "socios": [{"rut": "77.180.845-K", "nombre": "Solek Latam Holding SpA", "pctCap": 1.0, "capTotal": 1000.0}], "domicilio": "Los Militares 4765 Of 1501 Ps 15 Comuna Las Condes Region Metropolitana", "sucursal": ""}, {"cliente": "Talinay", "rut": "76.528.806-1", "razon": "Diana Solar SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "77.498.289-2", "nombre": "PMGD Holdco SpA", "pctCap": 1.0, "capTotal": 8172628.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Lote Maria Ines #S/N Ciudad Til Til Comuna Til-Til Region Metropolitana"}, {"cliente": "Talinay", "rut": "76.618.678-5", "razon": "Peteroa Energy SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "77.498.289-2", "nombre": "PMGD Holdco SpA", "pctCap": 1.0, "capTotal": 10007197.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Camino Los Corrales P2 3 #P 2 -3 Ciudad Santiago Comuna Padre Hurtado Region Metropolitana"}, {"cliente": "Talinay", "rut": "76.876.835-8", "razon": "Acotango De Verano SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "77.498.289-2", "nombre": "PMGD Holdco SpA", "pctCap": 1.0, "capTotal": 1225764.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Resto Hij 7 Lt7 - 11 Til #7 Ciudad Los Vilos Comuna Los Vilos Region De Coquimbo"}, {"cliente": "Talinay", "rut": "76.876.858-7", "razon": "Paniri De Verano SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "77.498.289-2", "nombre": "PMGD Holdco SpA", "pctCap": 1.0, "capTotal": 2282791.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Camino Jahuel #S/N Ciudad San Felipe Comuna Santa Maria Region De Valparaiso"}, {"cliente": "Talinay", "rut": "76.991.751-9", "razon": "PMGD Pepa SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "77.498.289-2", "nombre": "PMGD Holdco SpA", "pctCap": 1.0, "capTotal": 4000000.0}], "domicilio": "Flor De Azucenas 111 Of 51 Ps 5 Comuna Las Condes Region Metropolitana", "sucursal": "Balmaceda #3040 La Islita Ciudad Isla De Maipo Comuna Talagante Region Metropolitana"}, {"cliente": "Talinay", "rut": "76.991.760-8", "razon": "PMGD Darlin SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}, {"rut": "17.406.855-0", "nombre": "Jaime Coutts Silva"}], "socios": [{"rut": "77.498.289-2", "nombre": "PMGD Holdco SpA", "pctCap": 1.0, "capTotal": 4000000.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Balmacedad #3040 La Islita Ciudad Santiago Comuna Isla De Maipo Region Metropolitana"}, {"cliente": "Talinay", "rut": "77.257.259-K", "razon": "Solar E SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 7723258.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": ""}, {"cliente": "Talinay", "rut": "76.605.075-1", "razon": "Los Girasoles SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.540.957-8", "nombre": "Trina Solar Systems Chile SpA", "pctCap": 1.0, "capTotal": 3483050.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Parcela #07 El Escudo Chileno Ciudad Curacavi Comuna Curacavi Region Metropolitana"}, {"cliente": "Talinay", "rut": "76.693.239-8", "razon": "PMGD Santuario SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.760.999-K", "nombre": "Solar E SpA", "pctCap": 1.0, "capTotal": 1587741.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Camino De Rinconada A Stg #Sn Auco Ciudad Auco Comuna Rinconada Region De Valparaiso"}, {"cliente": "Talinay", "rut": "76.378.964-0", "razon": "Parque Solar Luna Del Norte SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "59.210.530-6", "nombre": "Danish Climate Investment Fund", "pctCap": 0.49, "capTotal": 1423037.0}, {"rut": "76.760.999-K", "nombre": "Solar E SpA", "pctCap": 0.51, "capTotal": 0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Hijuela Tres #S/N Peralillo Ciudad Coquimbo Comuna Vicuna Region De Coquimbo"}, {"cliente": "Talinay", "rut": "76.228.791-9", "razon": "Parque Solar Sol Del Norte SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "59.210.530-6", "nombre": "Danish Climate Investment Fund", "pctCap": 0.49, "capTotal": 1423014.0}, {"rut": "76.760.999-K", "nombre": "Solar E SpA", "pctCap": 0.51, "capTotal": 0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Hijuela Matta Lote A-1 #S/N Peralillo Ciudad Coquimbo Comuna Vicuna Region De Coquimbo"}, {"cliente": "Talinay", "rut": "76.540.822-9", "razon": "Árbol SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.760.999-K", "nombre": "Solar E SpA", "pctCap": 1.0, "capTotal": 12235928.0}], "domicilio": "Los Militares 5620 Of 905 Ps 9 Comuna Las Condes Region Metropolitana", "sucursal": "Ruta F-850, Km 2,680 #S/N Comuna Casablanca Region De Valparaiso"}, {"cliente": "Talinay", "rut": "76.839.906-9", "razon": "PMGD Cruz SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.634.820-3", "nombre": "Visibility S. A.", "pctCap": 1.0, "capTotal": 3300000.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Parcela 58 La Primavera #58 Depto. #Secto Sector San Roque Ciudad San Felipe Comuna Panquehue Region De Valparaiso"}, {"cliente": "Talinay", "rut": "77.223.376-0", "razon": "Parque Solar Lo Prado SpA", "regimen": "14 A", "reps": [{"rut": "9.490.580-K", "nombre": "Pablo Iacobelli Del Rio"}, {"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 1000.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Parcelacion Rinconada #3 Ciudad Rancagua Comuna Palmilla Region De Ohiggins"}, {"cliente": "Talinay", "rut": "77.223.377-9", "razon": "Parque Solar La Muralla Dos SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 1000.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Predio Santa Eugenia Lote #2 Nancagua Ciudad San Fernando Comuna Nancagua Region De Ohiggins"}, {"cliente": "Talinay", "rut": "76.827.442-8", "razon": "Parque Solar La Rosa SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 1000.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Pc La Justicio Lt B Comuna Llaillay Region De Valparaiso"}, {"cliente": "Talinay", "rut": "77.324.635-1", "razon": "Parque Solar Quilmo SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 1000.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Fdo San Ramon Lt B Comuna Chillan Viejo Region De Ñuble"}, {"cliente": "Talinay", "rut": "76.902.197-3", "razon": "Parque Solar Altos Lao SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 1000.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "La Higuera O Hijela #3 Hacienda La Higuera Ciudad Petorca Comuna La Ligua Region De Valparaiso"}, {"cliente": "Talinay", "rut": "77.465.297-3", "razon": "Parque Solar Jotabeche SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 1000.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Parcelacin Chañarcillo #33A Chañarcillo Ciudad Copiapo Comuna Tierra Amarilla Region De Atacama"}, {"cliente": "Talinay", "rut": "77.470.299-7", "razon": "Parque Solar El Trigal SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 1000.0}], "domicilio": "Flor de Azucenas 111 Of 51 Ps 5 Block #B Depto. #51 Comuna Las Condes Region Metropolitana", "sucursal": "Parcela-Proy Simon Boliva #22 Ciudad San Ignacio Comuna San Ignacio Region De Ñuble"}, {"cliente": "Talinay", "rut": "76.780.504-7", "razon": "Tralka SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "77.498.289-2", "nombre": "PMGD Holdco SpA", "pctCap": 1.0, "capTotal": 51195105.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": ""}, {"cliente": "Talinay", "rut": "76.461.945-5", "razon": "PV La Frontera SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 805432.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Ruta J-76-I, Lote 2 #S/N Fundo Ranguilli Ciudad Lolol Comuna Lolol Region De Ohiggins"}, {"cliente": "Talinay", "rut": "76.805.091-0", "razon": "PV Los Gorriones SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 651506.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Camino Vecinal #Km 1 Ciudad Retiro Comuna Retiro Region Del Maule"}, {"cliente": "Talinay", "rut": "76.845.123-0", "razon": "PV Los Patos SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 645838.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Ruta K-440 Km 6 #Km 6 Ciudad San Rafael Comuna San Rafael Region Del Maule"}, {"cliente": "Talinay", "rut": "76.461.861-0", "razon": "PV Portezuelo SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 548160.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "I-164, Lote 6L #S/N El Chorrillo Ciudad La Estrella Comuna La Estrella Region De Ohiggins"}, {"cliente": "Talinay", "rut": "76.515.583-5", "razon": "PV Libertadores SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 1536197.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Hijuela 14, San Roberto #14 San Roberto Tuniche Ciudad Rancagua Comuna Graneros Region De Ohiggins"}, {"cliente": "Talinay", "rut": "76.744.083-9", "razon": "PV El Pilpen SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 674052.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Ruta G-74 #S/N Ciudad Maria Pinto Comuna Maria Pinto Region Metropolitana"}, {"cliente": "Talinay", "rut": "76.805.093-7", "razon": "PV El Cernicalo SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 707066.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Ruta N 50 #Km 31 Ciudad Ninhue Comuna Ninhue Region De Ñuble"}, {"cliente": "Talinay", "rut": "76.367.198-4", "razon": "Parque Solar Cuz Cuz SpA", "regimen": "14 A", "reps": [{"rut": "9.490.580-K", "nombre": "Pablo Iacobelli Del Rio"}, {"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 699832.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Lote Agua Buena #3A Bellavista Ciudad Illapel Comuna Illapel Region De Coquimbo"}, {"cliente": "Talinay", "rut": "76.730.378-5", "razon": "PV Las Turcas SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 721916.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Ruta G-772 #1130 Ciudad Melipilla Comuna Melipilla Region Metropolitana"}, {"cliente": "Talinay", "rut": "76.744.082-0", "razon": "PV El Queltehue SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 696413.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Ruta G-74 #7663 Ciudad Melipilla Comuna Melipilla Region Metropolitana"}, {"cliente": "Talinay", "rut": "76.567.528-6", "razon": "PV Chancon SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 552742.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Parcela 32 Lote B #S/N Chancon Ciudad Rancagua Comuna Rancagua Region De Ohiggins"}, {"cliente": "Talinay", "rut": "76.830.065-8", "razon": "PV El Pitio SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 648947.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Parcela 215 Villa Longavi #215 Ciudad Longavi Comuna Longavi Region Del Maule"}, {"cliente": "Talinay", "rut": "76.845.124-9", "razon": "PV Las Palomas SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 690199.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Camino N-601 Km 1 #1 Ciudad Bulnes Comuna Bulnes Region De Ñuble"}, {"cliente": "Talinay", "rut": "76.860.789-3", "razon": "PV El Picurio SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 701474.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Parcela 33-B, Ruta I-912 #Km 1 Ciudad Chimbarongo Comuna Chimbarongo Region De Ohiggins"}, {"cliente": "Talinay", "rut": "76.462.109-3", "razon": "PV Rodeo SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 663047.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Parcela 11-B Y Parcela 5 #S/N Los Corrales Ciudad San Felipe Comuna Catemu Region De Valparaiso"}, {"cliente": "Talinay", "rut": "76.860.793-1", "razon": "PV El Chincol SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 753197.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Parcela N11 Nueva Esperan #R-240M Ciudad Niquen Comuna Niquen Region De Ñuble"}, {"cliente": "Talinay", "rut": "76.451.214-6", "razon": "PV Rovian SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 1680486.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Parcela #11 El Aromo Ciudad Nancagua Comuna Nancagua Region De Ohiggins"}, {"cliente": "Talinay", "rut": "76.748.838-6", "razon": "PV Doñihue SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.780.504-7", "nombre": "Tralka SpA", "pctCap": 1.0, "capTotal": 1921941.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "La Cabreria #S/N Ciudad Rancagua Comuna Coinco Region De Ohiggins"}, {"cliente": "Talinay", "rut": "77.810.911-5", "razon": "Antu Energy SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "77.498.289-2", "nombre": "PMGD Holdco SpA", "pctCap": 1.0, "capTotal": 8125.0}], "domicilio": "Flor de Azucenas 111 Of 51 Ps 5 Block #B Depto. #51 Comuna Las Condes Region Metropolitana", "sucursal": ""}, {"cliente": "Talinay", "rut": "77.379.321-2", "razon": "Malloco Solar SpA", "regimen": "14 D Nº3", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "77.794.929-2", "nombre": "Inversiones Malloco SpA", "pctCap": 1.0, "capTotal": 500.0}], "domicilio": "Los Militares 5620 Of 905 Ps 9 Comuna Las Condes Region Metropolitana", "sucursal": "Av Pajaritos #Sn Fundo El Huingan Ciudad Santiago Comuna Penaflor Region Metropolitana"}, {"cliente": "Talinay", "rut": "77.479.026-8", "razon": "Amanecer Solar SpA", "regimen": "14 D Nº3", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "77.794.931-4", "nombre": "Inversiones Amanecer SpA", "pctCap": 1.0, "capTotal": 500.0}], "domicilio": "Los Militares 5620 Of 905 Ps 9 Comuna Las Condes Region Metropolitana", "sucursal": "4,5 Km Este Sierragordapl 9242 Comuna Sierra Gorda Region De Antofagasta"}, {"cliente": "Talinay", "rut": "77.131.386-8", "razon": "La Sierra SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.522.352-0", "nombre": "Inversiones Los Sauces SpA", "pctCap": 1.0, "capTotal": 500.0}], "domicilio": "Los Militares 5620 Of 905 Ps 9 Comuna Las Condes Region Metropolitana", "sucursal": ""}, {"cliente": "Talinay", "rut": "76.966.021-6", "razon": "El Cóndor Solar SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "76.522.348-2", "nombre": "Solar Uno SpA", "pctCap": 1.0, "capTotal": 500.0}], "domicilio": "Los Militares 5620 Of 905 Ps 9 Comuna Las Condes Region Metropolitana", "sucursal": ""}, {"cliente": "Talinay", "rut": "77.240.056-K", "razon": "Porota Solar SpA", "regimen": "14 A", "reps": [{"rut": "16.006.719-5", "nombre": "Francisco Eduardo Yañez Espinosa"}], "socios": [{"rut": "76.522.352-0", "nombre": "Inversiones Los Sauces SpA", "pctCap": 1.0, "capTotal": 1000.0}], "domicilio": "Los Militares 5620 Of 905 Ps 9 Comuna Las Condes Region Metropolitana", "sucursal": ""}, {"cliente": "Talinay", "rut": "77.324.561-4", "razon": "Parque Solar La Rosa II SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "77.498.289-2", "nombre": "PMGD Holdco SpA", "pctCap": 1.0, "capTotal": 1000.0}], "domicilio": "A De Cordova 5670 Of 503 Ps 5, Edif 2 Comuna Las Condes Region Metropolitana", "sucursal": "Hijuela #06 Ciudad Cachapoal Comuna San Vicente Region De Ohiggins"}, {"cliente": "Talinay", "rut": "77.324.643-2", "razon": "Parque Solar Villa Longaví SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "77.810.911-5", "nombre": "Antu Energy SpA", "pctCap": 1.0, "capTotal": 1000.0}], "domicilio": "Flor De Azucenas 111 Of 51 Ps 5 Comuna Las Condes Region Metropolitana", "sucursal": "Hijuela 01, Parcela #49 Longavi Ciudad Linares Comuna Longavi Region Del Maule"}, {"cliente": "Talinay", "rut": "76.930.379-0", "razon": "Parque Solar Convento SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "77.810.911-5", "nombre": "Antu Energy SpA", "pctCap": 1.0, "capTotal": 1000.0}], "domicilio": "Flor de Azucenas 111 Of 51 Ps 5 Block #B Depto. #51 Comuna Las Condes Region Metropolitana", "sucursal": "Fundo San Bernardo Sur #S/N Parcela C Ciudad Chillan Comuna Chillan Region De Ñuble"}, {"cliente": "Talinay", "rut": "77.465.299-K", "razon": "Parque Solar Roma SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "77.810.911-5", "nombre": "Antu Energy SpA", "pctCap": 1.0, "capTotal": 1000.0}], "domicilio": "Flor De Azucenas 111 Of 51 Ps 5 Comuna Las Condes Region Metropolitana", "sucursal": "Chacra San Jose Roma Block #S/N Depto. #S/N Comuna San Fernando Region De Ohiggins"}, {"cliente": "Talinay", "rut": "77.465.291-4", "razon": "Parque Solar Doña Berta SpA", "regimen": "14 A", "reps": [{"rut": "12.722.335-1", "nombre": "David Aurelio Orellana Castro"}], "socios": [{"rut": "77.810.911-5", "nombre": "Antu Energy SpA", "pctCap": 1.0, "capTotal": 1000.0}], "domicilio": "Flor De Azucenas 111 Of 51 Ps 5 Comuna Las Condes Region Metropolitana", "sucursal": "El Palomar Hj.E-Resto Comuna Quillota Region De Valparaiso"}, {"cliente": "RRG", "rut": "77.050.590-9", "razon": "RRG Chile SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "RRG", "rut": "77.826.634-2", "razon": "RRG Chile Consulting SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "RRG", "rut": "76.960.318-2", "razon": "Huemul Chile SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "RRG", "rut": "77.050.587-9", "razon": "Raíces de Capital SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "RRG", "rut": "76.930.611-0", "razon": "El Retorno SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "RRG", "rut": "77.398.395-K", "razon": "Corylus OpCo SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "RRG", "rut": "77.398.394-1", "razon": "Corylus LandCo SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "RRG", "rut": "77.122.311-7", "razon": "Persea OpCo SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "RRG", "rut": "77.359.669-7", "razon": "Agrícola Koompartu SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "RRG", "rut": "77.359.667-0", "razon": "Agrícola Nambucca SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "RRG", "rut": "76.528.525-9", "razon": "Parronales Tinamou Limitada", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "RRG", "rut": "77.282.219-7", "razon": "Tunki Holdings SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "RRG", "rut": "76.963.336-7", "razon": "Cedars Solar SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "RRG", "rut": "76.618.669-6", "razon": "Lascar Energy SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "RRG", "rut": "76.618.666-1", "razon": "Puntiagudo Energy SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "76.411.169-9", "razon": "Solek Chile Services SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "76.415.378-2", "razon": "Solek Chile Holding SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.193.932-5", "razon": "Solek Chile Holding Iv SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.332.844-7", "razon": "Solek Chile Holding V SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.180.845-K", "razon": "Solek Latam Holding SpA (Latam)", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.363.438-6", "razon": "Solek Alpha SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "76.630.094-4", "razon": "Solek Alpha Ii SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.826.642-3", "razon": "Solek Ipp I SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.826.644-K", "razon": "Solek Ipp Ii SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.465.295-7", "razon": "Parque Solar Doña Carmen SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "76.930.369-3", "razon": "Parque Solar Mina Dorada SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.218.603-7", "razon": "Champa Solar SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.324.537-1", "razon": "Parque Solar Don Chacho SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.324.558-4", "razon": "Parque Solar Kali SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "76.951.371-K", "razon": "Fenix Solar SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.470.297-0", "razon": "Parque Solar Del Sol SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.470.353-5", "razon": "Parque Solar Santa Rebeca SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.089.188-4", "razon": "Santa Barbara SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.084.914-4", "razon": "Armando Solar SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "76.888.367-k", "razon": "Margarita Solar SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "76.939.907-0", "razon": "Parque Solar Panguilemo SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.450.362-5", "razon": "Parque Solar Conty SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.450.365-K", "razon": "Parque Solar Karelia SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.450.379-K", "razon": "Parque Solar San Lorenzo SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.454.421-6", "razon": "Parque Solar Concon SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.454.459-3", "razon": "Parque Solar Tara SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.101.918-8", "razon": "Parral Solar SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "76.930.384-7", "razon": "Parque Solar El Gultro SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "76.871.328-6", "razon": "Parque Solar Los Peumos SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "76.871.347-2", "razon": "Parque Solar Colimavilla SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.218.637-1", "razon": "Limache Solar SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.324.634-3", "razon": "Parque Solar Linares Norte SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.324.522-3", "razon": "Parque Solar El Caqui SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.324.631-9", "razon": "Parque Solar Campanas SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.470.336-5", "razon": "Parque Solar Eulalia SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.324.639-4", "razon": "Parque Solar Trupan SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.470.348-9", "razon": "Parque Solar Numpay SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.470.352-7", "razon": "Parque Solar Santa Marta SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.101.919-6", "razon": "Humberto Solar SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.470.341-1", "razon": "Parque Solar La Esperanza SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.070.956-3", "razon": "Renato Solar SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.107.808-7", "razon": "Pilar Solar SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.470.295-4", "razon": "Parque Solar Barrancón SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.470.342-K", "razon": "Parque Solar Los Olivos SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.474.766-4", "razon": "Parque Solar Requegua SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.826.646-6", "razon": "Solek Dev Holding SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.470.343-8", "razon": "Bess San Rafael SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.470.292-K", "razon": "Parque Solar Badajoz SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.470.276-8", "razon": "Parque Solar Andromeda SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.470.271-7", "razon": "Parque Solar Aguas Buenas SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.470.344-6", "razon": "Parque Solar Miño SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.470.351-9", "razon": "Parque Solar Peumo SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.454.426-7", "razon": "Parque Solar Laja SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.454.403-8", "razon": "Parque Solar Carrizo SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.454.399-6", "razon": "Parque Solar Atacama SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.470.338-1", "razon": "Parque Solar La Chalinga SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.470.347-0", "razon": "Parque Solar Narciso SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}, {"cliente": "Solek", "rut": "77.474.761-3", "razon": "Parque Solar Popeta SpA", "regimen": "", "reps": [], "socios": [], "domicilio": "", "sucursal": ""}];
-  var total = empresas.length;
-  var count = 0;
-  
-  toast('Subiendo ' + total + ' empresas al Sheet...', 's');
-  
-  // Subir en lotes de 10
-  function subirLote(idx){
-    if(idx >= total){
-      toast('✓ ' + count + ' empresas subidas al Sheet', 's');
-      return;
-    }
-    var lote = empresas.slice(idx, idx+10);
-    var promesas = lote.map(function(c){
-      return apiPost({
-        action: 'upsert',
-        sheet: 'Empresas',
-        keyCol: 'RUT',
-        keyVal: c.rut,
-        data: {
-          'RUT': c.rut,
-          'Razón Social': c.razon,
-          'Cliente': c.cliente,
-          'Régimen': c.regimen||'',
-          'Representantes': (c.reps||[]).map(function(r){return r.nombre;}).join(', '),
-          'Socios': (c.socios||[]).map(function(s){return s.nombre;}).join(', '),
-          'Domicilio': c.domicilio||'',
-          'Sucursal': c.sucursal||''
-        },
-        usuario: 'Sistema'
-      }).then(function(){count++;});
-    });
-    Promise.all(promesas).then(function(){
-      subirLote(idx+10);
-    }).catch(function(e){
-      toast('Error en lote '+idx+': '+e.message, 'e');
-    });
-  }
-  subirLote(0);
+function abrirSII(rut,url){
+  navigator.clipboard.writeText(rut).catch(function(){});
+  window.open(url,'_blank');
+  var clave=CLAVES_SII[rut];
+  if(clave){document.getElementById('mclave-rut').textContent=rut;document.getElementById('mclave-clave').textContent=clave;openModal('modal-clave-sii');}
+  else toast('RUT '+rut+' copiado — pégalo en el SII','s');
 }
-
-
-function abrirEditSII(rut){
-  var c = COMPANIES.find(function(x){return x.rut===rut;});
-  if(!c) return;
-  document.getElementById('msii-title').textContent = c.razon;
-  document.getElementById('msii-rut').textContent = rut;
-  document.getElementById('msii-razon').value = c.razon||'';
-  document.getElementById('msii-regimen').value = c.regimen||'';
-  renderPersonasRows('reps', c.reps||[]);
-  renderPersonasRows('socios', c.socios||[]);
-  document.getElementById('msii-cap-enterado').value = c.capEnterado||'';
-  document.getElementById('msii-cap-porenterar').value = c.capPorEnterar||'';
-  document.getElementById('msii-cap-total').value = (c.capEnterado||0)+(c.capPorEnterar||0)||'';
-  document.getElementById('msii-domicilio').value = c.domicilio||'';
-  document.getElementById('msii-sucursal').value = c.sucursal||'';
-  document.getElementById('msii-rut').dataset.rut = rut;
-  openModal('modal-sii-edit');
+function mostrarClaveSII(rut,clave){document.getElementById('mclave-rut').textContent=rut;document.getElementById('mclave-clave').textContent=clave;openModal('modal-clave-sii');}
+function copiarClaveSII(){navigator.clipboard.writeText(document.getElementById('mclave-clave').textContent).catch(function(){});toast('Clave copiada','s');}
+function pedirClavesSII(){var pw=prompt('Clave de acceso a claves SII:');if(pw===null)return;cargarClavesSII(pw);document.getElementById('user-menu').style.display='none';}
+function cargarClavesSII(claveAcceso){
+  apiGet({action:'claves',usuario:localStorage.getItem('tz2_usr')||'',clave_acceso:claveAcceso})
+    .then(function(res){if(res.claves){CLAVES_SII=res.claves;toast('Claves SII cargadas','s');}else toast('Sin autorización','e');})
+    .catch(function(){toast('Error al cargar claves','e');});
 }
-
-function guardarEditSII(){
-  var rut = document.getElementById('msii-rut').dataset.rut;
-  var c = COMPANIES.find(function(x){return x.rut===rut;});
-  if(!c) return;
-  c.razon = document.getElementById('msii-razon').value.trim();
-  c.regimen = document.getElementById('msii-regimen').value.trim();
-  c.reps = document.getElementById('msii-reps').value.split('\n').filter(Boolean).map(function(n){return {nombre:n.trim()};});
-  c.socios = document.getElementById('msii-socios').value.split('\n').filter(Boolean).map(function(n){return {nombre:n.trim()};});
-  c.capEnterado   = parseFloat(document.getElementById('msii-cap-enterado').value)||0;
-  c.capPorEnterar = parseFloat(document.getElementById('msii-cap-porenterar').value)||0;
-  c.capTotal      = c.capEnterado + c.capPorEnterar;
-  c.domicilio = document.getElementById('msii-domicilio').value.trim();
-  c.sucursal = document.getElementById('msii-sucursal').value.trim();
-  // Guardar en localStorage
-  lsSet('tz2_companies', COMPANIES);
-  // Sincronizar con Sheet
-  syncSheet('sii', rut, {
-    'RUT': rut,
-    'Razón Social': c.razon,
-    'Cliente': c.cliente,
-    'Régimen': c.regimen,
-    'Representantes': c.reps.map(function(r){return r.nombre;}).join(', '),
-    'RUT_Representantes': c.reps.map(function(r){return r.rut||'';}).join(', '),
-    'Socios': c.socios.map(function(s){return s.nombre+(s.pctCap!=null?' ('+((s.pctCap||0)*100).toFixed(1)+'%)':'');}).join(', '),
-    'RUT_Socios': c.socios.map(function(s){return s.rut||'';}).join(', '),
-    'Domicilio': c.domicilio,
-    'Sucursal': c.sucursal,
-    'Capital_Enterado': c.capEnterado||0,
-    'Capital_PorEnterar': c.capPorEnterar||0,
-    'Capital_Total': c.capTotal||0
-  });
-  closeModal('modal-sii-edit');
-  renderSII();
-  toast('✓ Información actualizada', 's');
-}
-
-
 function renderConfig(){
-  var usr = localStorage.getItem('tz2_usr') || '';
-  var el = document.getElementById('cfg-usr');
-  if(el) el.value = usr;
+  var usr=localStorage.getItem('tz2_usr')||'';
+  var el=document.getElementById('cfg-usr');
+  if(el) el.value=usr;
 }
 
-function renderPersonasRows(tipo, lista){
-  var wrap = document.getElementById('msii-'+tipo+'-wrap');
-  wrap.innerHTML = '';
-  if(!lista.length) lista = [{rut:'',nombre:''}];
-  lista.forEach(function(p, i){
-    var row = document.createElement('div');
-    row.style.cssText = 'display:grid;gap:6px;margin-bottom:4px;padding:8px;background:var(--gray-100);border-radius:var(--rs)';
-    var isSocio = tipo==='socios';
-    row.style.gridTemplateColumns = isSocio ? '130px 1fr 90px 30px' : '130px 1fr 30px';
-    var html =
-      '<input class="form-input" placeholder="RUT" value="'+(p.rut||'')+'" oninput="onRutInput(this)" onblur="onRutInput(this)">'+
-      '<input class="form-input" placeholder="Nombre completo" value="'+(p.nombre||'')+'">';
+
+function buildPersonasIndex(){
+  var idx={};
+  COMPANIES.forEach(function(c){
+    (c.reps||[]).forEach(function(p){if(p.rut&&p.nombre) idx[p.rut.trim()]=p.nombre.trim();});
+    (c.socios||[]).forEach(function(s){if(s.rut&&s.nombre) idx[s.rut.trim()]=s.nombre.trim();});
+  });
+  return idx;
+}
+function onRutInput(inputEl){
+  var rut=inputEl.value.trim(); if(!rut) return;
+  var idx=buildPersonasIndex();
+  var rutNorm=rut.replace(/\./g,'');
+  var nombre=null;
+  Object.keys(idx).forEach(function(k){if(k.replace(/\./g,'')===rutNorm) nombre=idx[k];});
+  if(nombre){
+    var inputs=inputEl.parentNode.querySelectorAll('input');
+    var nombreInput=inputs[1];
+    if(nombreInput&&!nombreInput.value.trim()){nombreInput.value=nombre;nombreInput.style.background='var(--teal-pale)';setTimeout(function(){nombreInput.style.background='';},1500);}
+  }
+}
+function renderPersonasRows(tipo,lista){
+  var wrap=document.getElementById('msii-'+tipo+'-wrap');
+  wrap.innerHTML='';
+  if(!lista.length) lista=[{rut:'',nombre:''}];
+  lista.forEach(function(p){
+    var row=document.createElement('div');
+    var isSocio=tipo==='socios';
+    row.style.cssText='display:grid;gap:6px;margin-bottom:4px;padding:8px;background:var(--gray-100);border-radius:var(--rs);grid-template-columns:'+(isSocio?'130px 1fr 90px 30px':'130px 1fr 30px');
+    var inp1=document.createElement('input');inp1.className='form-input';inp1.placeholder='RUT';inp1.value=p.rut||'';
+    inp1.addEventListener('blur',function(){onRutInput(this);});
+    var inp2=document.createElement('input');inp2.className='form-input';inp2.placeholder='Nombre completo';inp2.value=p.nombre||'';
+    var btn=document.createElement('button');btn.type='button';btn.style.cssText='background:none;border:none;color:var(--red);cursor:pointer;font-size:16px';btn.textContent='✕';
+    btn.addEventListener('click',function(){row.remove();});
+    row.appendChild(inp1);row.appendChild(inp2);
     if(isSocio){
-      html += '<input class="form-input" type="number" min="0" max="100" step="0.01" placeholder="%" value="'+(p.pctCap!=null?(p.pctCap*100).toFixed(2):'')+'" title="% Participación">';
+      var inp3=document.createElement('input');inp3.className='form-input';inp3.type='number';inp3.min='0';inp3.max='100';inp3.step='0.01';inp3.placeholder='%';
+      inp3.value=p.pctCap!=null?((p.pctCap||0)*100).toFixed(2):'';
+      inp3.title='% Participación';
+      row.appendChild(inp3);
     }
-    html += '<button type="button" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:16px" onclick="this.parentNode.remove()">✕</button>';
-    row.innerHTML = html;
+    row.appendChild(btn);
     wrap.appendChild(row);
   });
 }
-
 function leerPersonasRows(tipo){
-  var wrap = document.getElementById('msii-'+tipo+'-wrap');
-  var rows = wrap.querySelectorAll('div');
-  var result = [];
-  rows.forEach(function(row){
-    var inputs = row.querySelectorAll('input');
-    var rut    = inputs[0] ? inputs[0].value.trim() : '';
-    var nombre = inputs[1] ? inputs[1].value.trim() : '';
+  var wrap=document.getElementById('msii-'+tipo+'-wrap');
+  var result=[];
+  Array.from(wrap.children).forEach(function(row){
+    var inputs=row.querySelectorAll('input');
+    var rut=inputs[0]?inputs[0].value.trim():'';
+    var nombre=inputs[1]?inputs[1].value.trim():'';
     if(!nombre) return;
-    var obj = {rut:rut, nombre:nombre};
-    if(tipo==='socios'){
-      var pct = inputs[2] ? parseFloat(inputs[2].value) : null;
-      var cap = inputs[3] ? parseFloat(inputs[3].value) : null;
-      if(!isNaN(pct) && pct!==null) obj.pctCap = pct/100;
-    }
+    var obj={rut:rut,nombre:nombre};
+    if(tipo==='socios'){var pct=inputs[2]?parseFloat(inputs[2].value):null;if(!isNaN(pct)&&pct!==null) obj.pctCap=pct/100;}
     result.push(obj);
   });
   return result;
 }
-
-function addRepRow(tipo){
-  renderPersonasRows(tipo, leerPersonasRows(tipo).concat([{rut:'',nombre:'',pctCap:null,capTotal:null}]));
+function addRepRow(tipo){renderPersonasRows(tipo,leerPersonasRows(tipo).concat([{rut:'',nombre:'',pctCap:null}]));}
+function calcCapTotal(){
+  var ent=parseFloat(document.getElementById('msii-cap-enterado').value)||0;
+  var por=parseFloat(document.getElementById('msii-cap-porenterar').value)||0;
+  document.getElementById('msii-cap-total').value=ent+por||'';
 }
-
-
-// ── CARGA DE EMPRESAS DESDE SHEET ────────────────────────────────────────
-function cargarEmpresas(){
-  apiGet({action:'read', sheet:'Empresas'})
-    .then(function(res){
-      if(res.error || !res.rows || !res.rows.length) return;
-      var rows = res.rows.filter(function(r){ return r['Estado']!=='Inactiva'; });
-      if(!rows.length) return;
-      // Reconstruir COMPANIES desde Sheet
-      COMPANIES.length = 0;
-      rows.forEach(function(r){
-        COMPANIES.push({
-          rut:       r['RUT']||'',
-          razon:     r['Razón Social']||'',
-          cliente:   r['Cliente']||'',
-          regimen:   r['Régimen']||'',
-          reps:      (r['Representantes']||'').split(',').filter(Boolean).map(function(n,i){
-            var ruts=(r['RUT_Representantes']||'').split(',');
-            return {rut:(ruts[i]||'').trim(), nombre:n.trim()};
-          }),
-          socios:    (r['Socios']||'').split(',').filter(Boolean).map(function(n,i){
-            var ruts=(r['RUT_Socios']||'').split(',');
-            return {rut:(ruts[i]||'').trim(), nombre:n.trim()};
-          }),
-          domicilio: r['Domicilio']||'',
-          sucursal:  r['Sucursal']||''
-        });
-      });
-      console.log('✓ '+COMPANIES.length+' sociedades cargadas desde Sheet');
-      // Re-renderizar módulo activo
-      if(document.getElementById('page-sii').classList.contains('active')) renderSII();
-      if(document.getElementById('page-dashboard').classList.contains('active')) renderDash();
-    })
-    .catch(function(){ console.warn('Sin conexión al Sheet — usando datos locales'); });
+function abrirEditSII(rut){
+  var c=COMPANIES.find(function(x){return x.rut===rut;});
+  if(!c) return;
+  document.getElementById('msii-title').textContent=c.razon;
+  document.getElementById('msii-rut').textContent=rut;
+  document.getElementById('msii-rut').dataset.rut=rut;
+  document.getElementById('msii-razon').value=c.razon||'';
+  document.getElementById('msii-regimen').value=c.regimen||'';
+  renderPersonasRows('reps',c.reps||[]);
+  renderPersonasRows('socios',c.socios||[]);
+  document.getElementById('msii-cap-enterado').value=c.capEnterado||'';
+  document.getElementById('msii-cap-porenterar').value=c.capPorEnterar||'';
+  document.getElementById('msii-cap-total').value=c.capTotal||'';
+  document.getElementById('msii-domicilio').value=c.domicilio||'';
+  document.getElementById('msii-sucursal').value=c.sucursal||'';
+  openModal('modal-sii-edit');
 }
-
-// ── CREAR NUEVA SOCIEDAD ──────────────────────────────────────────────────
+function guardarEditSII(){
+  var rut=document.getElementById('msii-rut').dataset.rut;
+  var c=COMPANIES.find(function(x){return x.rut===rut;});
+  if(!c) return;
+  c.razon=document.getElementById('msii-razon').value.trim();
+  c.regimen=document.getElementById('msii-regimen').value.trim();
+  c.reps=leerPersonasRows('reps');
+  c.socios=leerPersonasRows('socios');
+  c.capEnterado=parseFloat(document.getElementById('msii-cap-enterado').value)||0;
+  c.capPorEnterar=parseFloat(document.getElementById('msii-cap-porenterar').value)||0;
+  c.capTotal=c.capEnterado+c.capPorEnterar;
+  c.domicilio=document.getElementById('msii-domicilio').value.trim();
+  c.sucursal=document.getElementById('msii-sucursal').value.trim();
+  lsSet('tz2_companies',COMPANIES);
+  syncSheet('sii',rut,{
+    'RUT':rut,'Razón Social':c.razon,'Cliente':c.cliente,'Régimen':c.regimen,
+    'Representantes':c.reps.map(function(r){return r.nombre;}).join(', '),
+    'RUT_Representantes':c.reps.map(function(r){return r.rut||'';}).join(', '),
+    'Socios':c.socios.map(function(s){return s.nombre+(s.pctCap!=null?' ('+(((s.pctCap||0)*100).toFixed(1))+'%)':'');}).join(', '),
+    'RUT_Socios':c.socios.map(function(s){return s.rut||'';}).join(', '),
+    'Domicilio':c.domicilio,'Sucursal':c.sucursal,
+    'Capital_Enterado':c.capEnterado,'Capital_PorEnterar':c.capPorEnterar,'Capital_Total':c.capTotal
+  });
+  closeModal('modal-sii-edit');renderSII();toast('✓ Información actualizada','s');
+}
 function guardarNuevaSociedad(){
-  var rut   = document.getElementById('ns-rut').value.trim();
-  var razon = document.getElementById('ns-razon').value.trim();
-  var cli   = document.getElementById('ns-cliente').value;
-  var errEl = document.getElementById('ns-error');
-
-  if(!rut || !razon){
-    errEl.textContent = 'RUT y Razón Social son obligatorios.';
-    errEl.style.display = 'block';
-    return;
-  }
-  if(COMPANIES.find(function(c){return c.rut===rut;})){
-    errEl.textContent = 'Ya existe una sociedad con ese RUT.';
-    errEl.style.display = 'block';
-    return;
-  }
-  errEl.style.display = 'none';
-
-  var nueva = {rut:rut, razon:razon, cliente:cli, regimen:'', reps:[], socios:[], domicilio:'', sucursal:''};
+  var rut=document.getElementById('ns-rut').value.trim();
+  var razon=document.getElementById('ns-razon').value.trim();
+  var cli=document.getElementById('ns-cliente').value;
+  var errEl=document.getElementById('ns-error');
+  if(!rut||!razon){errEl.textContent='RUT y Razón Social son obligatorios.';errEl.style.display='block';return;}
+  if(COMPANIES.find(function(c){return c.rut===rut;})){errEl.textContent='Ya existe una sociedad con ese RUT.';errEl.style.display='block';return;}
+  errEl.style.display='none';
+  var nueva={rut:rut,razon:razon,cliente:cli,regimen:'',reps:[],socios:[],domicilio:'',sucursal:''};
   COMPANIES.push(nueva);
-
-  // Guardar en Sheet
-  apiPost({action:'upsert', sheet:'Empresas', keyCol:'RUT', keyVal:rut, data:{
-    'RUT':rut, 'Razón Social':razon, 'Cliente':cli, 'Régimen':'',
-    'Representantes':'', 'RUT_Representantes':'', 'Socios':'', 'RUT_Socios':'',
-    'Domicilio':'', 'Sucursal':'', 'Estado':'Activa'
-  }, usuario:localStorage.getItem('tz2_usr')||''})
-  .then(function(res){
-    if(res.ok) toast('✓ Sociedad creada','s');
-    else toast('⚠️ Error al guardar en Sheet','e');
-  }).catch(function(){ toast('⚠️ Sin conexión al Sheet','e'); });
-
+  apiPost({action:'upsert',sheet:'Empresas',keyCol:'RUT',keyVal:rut,data:{'RUT':rut,'Razón Social':razon,'Cliente':cli,'Estado':'Activa'},usuario:localStorage.getItem('tz2_usr')||''})
+    .then(function(res){if(res.ok) toast('✓ Sociedad creada en Sheet','s');}).catch(function(){});
   closeModal('modal-nueva-soc');
-  document.getElementById('ns-rut').value = '';
-  document.getElementById('ns-razon').value = '';
-  document.getElementById('ns-cliente').value = '';
-  renderSII();
-  toast('✓ Sociedad añadida','s');
+  document.getElementById('ns-rut').value='';document.getElementById('ns-razon').value='';document.getElementById('ns-cliente').value='';
+  renderSII();toast('✓ Sociedad añadida','s');
 }
-
-// ── DESACTIVAR SOCIEDAD (solo Admin) ─────────────────────────────────────
-function eliminarSociedad(rut, razon){
-  if(!esAdmin()){ toast('Solo el Administrador puede desactivar sociedades','e'); return; }
-  if(!confirm('¿Desactivar "'+razon+'"? No aparecerá en ningún módulo.')) return;
-
-  // Quitar de COMPANIES en memoria
-  var idx = COMPANIES.findIndex(function(c){return c.rut===rut;});
+function eliminarSociedad(rut,razon){
+  if(!esAdmin()){toast('Solo el Administrador puede desactivar sociedades','e');return;}
+  if(!confirm('¿Desactivar "'+razon+'"?')) return;
+  var idx=COMPANIES.findIndex(function(c){return c.rut===rut;});
   if(idx>=0) COMPANIES.splice(idx,1);
-
-  // Marcar como Inactiva en Sheet
-  apiPost({action:'upsert', sheet:'Empresas', keyCol:'RUT', keyVal:rut,
-    data:{'RUT':rut,'Estado':'Inactiva'}, usuario:localStorage.getItem('tz2_usr')||''})
-  .then(function(res){
-    if(res.ok) toast('✓ Sociedad desactivada','s');
-  }).catch(function(){});
-
-  renderSII();
-  renderDash();
+  apiPost({action:'upsert',sheet:'Empresas',keyCol:'RUT',keyVal:rut,data:{'RUT':rut,'Estado':'Inactiva'},usuario:localStorage.getItem('tz2_usr')||''}).catch(function(){});
+  renderSII();renderDash();toast('✓ Sociedad desactivada','s');
 }
-
-
-function abrirDesactivarSociedad(){
-  document.getElementById('deact-q').value='';
-  filtrarDeact();
-  openModal('modal-deact-soc');
-}
+function abrirDesactivarSociedad(){document.getElementById('deact-q').value='';filtrarDeact();openModal('modal-deact-soc');}
 function filtrarDeact(){
   var q=document.getElementById('deact-q').value.toLowerCase();
   var lista=document.getElementById('deact-lista');
-  var filtered=COMPANIES.filter(function(c){
-    return !q||c.rut.toLowerCase().includes(q)||c.razon.toLowerCase().includes(q);
-  }).slice(0,20);
-  lista.innerHTML=filtered.map(function(c){
-    return '<div style="padding:10px 12px;border-bottom:1px solid var(--gray-200);display:flex;justify-content:space-between;align-items:center">'+
-      '<div><div style="font-weight:500;font-size:13px">'+c.razon+'</div>'+
-      '<div style="font-size:11px;font-family:monospace;color:var(--gray-400)">'+c.rut+'</div></div>'+
-      '<button class="btn btn-secondary btn-sm" style="color:var(--red);flex-shrink:0" data-rut="'+c.rut+'" data-razon="'+c.razon+'" onclick="confirmarDesactivar(this.dataset.rut,this.dataset.razon)">Desactivar</button>'+
-      '</div>';
-  }).join('');
-}
-function confirmarDesactivar(rut,razon){
-  if(!confirm('¿Desactivar "'+razon+'"? No aparecerá en ningún módulo.')) return;
-  eliminarSociedad(rut,razon);
-  closeModal('modal-deact-soc');
-}
-
-
-function calcCapTotal(){
-  var ent = parseFloat(document.getElementById('msii-cap-enterado').value)||0;
-  var por = parseFloat(document.getElementById('msii-cap-porenterar').value)||0;
-  document.getElementById('msii-cap-total').value = ent + por || '';
-}
-
-
-// ── ÍNDICE DE PERSONAS CONOCIDAS ─────────────────────────────────────────
-function buildPersonasIndex(){
-  var idx = {};
-  COMPANIES.forEach(function(c){
-    (c.reps||[]).forEach(function(p){ if(p.rut&&p.nombre) idx[p.rut.trim()] = p.nombre.trim(); });
-    (c.socios||[]).forEach(function(s){ if(s.rut&&s.nombre) idx[s.rut.trim()] = s.nombre.trim(); });
+  var filtered=COMPANIES.filter(function(c){return !q||c.rut.toLowerCase().includes(q)||c.razon.toLowerCase().includes(q);}).slice(0,20);
+  lista.innerHTML='';
+  filtered.forEach(function(c){
+    var div=document.createElement('div');
+    div.style.cssText='padding:10px 12px;border-bottom:1px solid var(--gray-200);display:flex;justify-content:space-between;align-items:center';
+    div.innerHTML='<div><div style="font-weight:500;font-size:13px">'+c.razon+'</div><div style="font-size:11px;font-family:monospace;color:var(--gray-400)">'+c.rut+'</div></div>';
+    var btn=document.createElement('button');btn.className='btn btn-secondary btn-sm';btn.style.color='var(--red)';btn.textContent='Desactivar';
+    (function(rut,razon){btn.addEventListener('click',function(){if(confirm('¿Desactivar "'+razon+'"?')){eliminarSociedad(rut,razon);closeModal('modal-deact-soc');}});})(c.rut,c.razon);
+    div.appendChild(btn);lista.appendChild(div);
   });
-  return idx;
-}
-
-function onRutInput(inputEl){
-  var rut = inputEl.value.trim();
-  if(!rut) return;
-  var idx = buildPersonasIndex();
-  // Normalizar RUT para comparar (quitar puntos)
-  var rutNorm = rut.replace(/\./g,'');
-  var nombre = null;
-  Object.keys(idx).forEach(function(k){
-    if(k.replace(/\./g,'') === rutNorm) nombre = idx[k];
-  });
-  if(nombre){
-    // El input de nombre es el siguiente hermano
-    var nombreInput = inputEl.parentNode.querySelectorAll('input')[1];
-    if(nombreInput && !nombreInput.value.trim()){
-      nombreInput.value = nombre;
-      nombreInput.style.background = 'var(--teal-pale)';
-      setTimeout(function(){ nombreInput.style.background = ''; }, 1500);
-    }
-  }
 }
 
 // INIT
-renderDash();renderConfig();initDJAtPills();
+renderDash();renderConfig();
+if(typeof initUsuario==='function') initUsuario();
+cargarEmpresas();
+var btnDeact=document.getElementById('btn-deact-soc');if(btnDeact) btnDeact.style.display=esAdmin()?'':' none';initDJAtPills();
 document.getElementById('at-label').textContent=ATS.join(' · ');
 // Keyboard: Esc closes modals
 document.addEventListener('keydown',e=>{
