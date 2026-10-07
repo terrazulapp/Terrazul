@@ -296,7 +296,8 @@ td{padding:9px 12px;color:var(--navy);vertical-align:middle}
           <div class="pill" onclick="setSIIReg('vacio',this)">Sin datos</div>
         </div>
       </div>
-      <div style="margin-left:auto;align-self:flex-end">
+      <div style="margin-left:auto;align-self:flex-end;display:flex;gap:8px">
+        <button class="btn btn-secondary btn-sm" onclick="exportarInfoSII()">📤 Exportar</button>
         <button class="btn btn-secondary btn-sm" onclick="limpiarSII()">✕ Limpiar</button>
       </div>
     </div>
@@ -1645,29 +1646,83 @@ function resetData(){
 
 // EXPORTAR
 function exportarExcel(){
-  const est={3:'Aceptada',2:'Con observaciones',1:'Inconsistencias',0:'No aplica'};
-  const wsData=[['Cliente','RUT','Razón Social',...ATS.flatMap(at=>[at+' Estado',at+' Observación'])]];
-  COMPANIES.forEach(c=>{
-    const r=RENTA[c.rut];
-    wsData.push([c.cliente,c.rut,c.razon,...['at1','at2','at3'].flatMap(k=>[r?est[r[k]?.estado]??'Sin datos':'Sin datos',r?r[k]?.obs||'':''])]);
+  var wb = XLSX.utils.book_new();
+  var estRenta={'3':'Aceptada','2':'Con observaciones','1':'Observada / Inconsistencias','0':'No aplica','-1':'Sin datos'};
+  var estDJ={'1':'Aceptada','2':'Con observaciones'};
+
+  // ── HOJA RENTA ────────────────────────────────────────────────────────
+  var rentaRows = [];
+  rentaRows.push(['ESTADO DECLARACIONES DE RENTA','','','','','','','','','','']);
+  rentaRows.push(['','','','','','','','','',3,'Aceptada']);
+  rentaRows.push(['','','','','','','','','',2,'Con observaciones']);
+  rentaRows.push(['','','','','','','','','',1,'Observada / Inconsistencias']);
+  rentaRows.push(['N°','Grupo','RUT','Razón Social',
+    ATS[0]+' Estado',ATS[0]+' Obs.',
+    ATS[1]+' Estado',ATS[1]+' Obs.',
+    ATS[2]+' Estado',ATS[2]+' Obs.']);
+
+  var n=0;
+  ['Talinay','RRG','Solek'].forEach(function(cliente){
+    var emps=COMPANIES.filter(function(c){return c.cliente===cliente;});
+    if(!emps.length) return;
+    rentaRows.push([cliente.toUpperCase(),'','','','','','','','','']);
+    emps.forEach(function(c){
+      n++;
+      var r=RENTA[c.rut]||{};
+      var row=[n,cliente,c.rut,c.razon];
+      ['at1','at2','at3'].forEach(function(k){
+        var est=r[k]?r[k].estado:-1;
+        var obs=r[k]?r[k].obs||'':'';
+        row.push(estRenta[String(est)]||'Sin datos',obs);
+      });
+      rentaRows.push(row);
+    });
   });
-  const wb=XLSX.utils.book_new();
-  const ws=XLSX.utils.aoa_to_sheet(wsData);
-  ws['!cols']=[{wch:10},{wch:14},{wch:42},{wch:14},{wch:60},{wch:14},{wch:60},{wch:14},{wch:60}];
-  XLSX.utils.book_append_sheet(wb,ws,'Estado Renta');
-  // Hoja DJ
-  const djData=[['Cliente','RUT','Razón Social','Obs. General',...DJ_TYPES]];
-  COMPANIES.forEach(c=>{
-    const d=DJ_DATA[c.rut];
-    djData.push([c.cliente,c.rut,c.razon,d?d.obs_general||'':'',...DJ_TYPES.map(dj=>{
-      const e=d?.djs?.[dj]?.estado;
-      return e===1?'Aceptada':e===0?'Pendiente':'No aplica';
-    })]);
+
+  var wsRenta=XLSX.utils.aoa_to_sheet(rentaRows);
+  wsRenta['!cols']=[{wch:5},{wch:10},{wch:14},{wch:35},{wch:20},{wch:40},{wch:20},{wch:40},{wch:20},{wch:40}];
+  XLSX.utils.book_append_sheet(wb,wsRenta,'Estado Renta');
+
+  // ── HOJA DJ — solo formularios con estado presentado ─────────────────
+  var djRows = [];
+  djRows.push(['DECLARACIONES JURADAS PRESENTADAS','','','','','']);
+  djRows.push(['','','','','',1,'Aceptada']);
+  djRows.push(['','','','','',2,'Con observaciones']);
+  djRows.push(['N°','Cliente','RUT','Razón Social','Formulario','Descripción','Estado','Observación']);
+
+  var m=0;
+  ['Talinay','RRG','Solek'].forEach(function(cliente){
+    var emps=COMPANIES.filter(function(c){return c.cliente===cliente;});
+    if(!emps.length) return;
+    var grupoRows=[];
+    emps.forEach(function(c){
+      var d=DJ_DATA[c.rut];
+      var djs=d?d.djs||{}:{};
+      Object.keys(djs).sort().forEach(function(dj){
+        var info=djs[dj]||{};
+        var est=info.estado;
+        // Solo mostrar si tiene estado presentado (Aceptada=1 o Con obs=2)
+        if(est!==1&&est!==2) return;
+        m++;
+        var desc=DJ_SHORT[dj]||dj;
+        var obs=info.obs||'';
+        grupoRows.push([m,cliente,c.rut,c.razon,dj,desc,estDJ[String(est)]||'',obs]);
+      });
+    });
+    if(grupoRows.length){
+      djRows.push([cliente.toUpperCase(),'','','','','','','']);
+      grupoRows.forEach(function(r){djRows.push(r);});
+    }
   });
-  const ws2=XLSX.utils.aoa_to_sheet(djData);
-  XLSX.utils.book_append_sheet(wb,ws2,'DJ AT-'+ATS[0].split('-')[1]);
-  XLSX.writeFile(wb,'terrazul_control_'+new Date().toISOString().slice(0,10)+'.xlsx');
-  toast('✓ Excel exportado (Renta + DJ)','s');
+
+  if(m===0) djRows.push(['','','','Sin declaraciones presentadas registradas','','','','']);
+
+  var wsDJ=XLSX.utils.aoa_to_sheet(djRows);
+  wsDJ['!cols']=[{wch:5},{wch:10},{wch:14},{wch:35},{wch:10},{wch:30},{wch:18},{wch:55}];
+  XLSX.utils.book_append_sheet(wb,wsDJ,'DJ Presentadas');
+
+  XLSX.writeFile(wb,'Terrazul_Control_'+new Date().toISOString().slice(0,10)+'.xlsx');
+  toast('✓ Excel exportado','s');
 }
 
 // TOAST
@@ -2441,6 +2496,56 @@ function filtrarDeact(){
     (function(rut,razon){btn.addEventListener('click',function(){if(confirm('¿Desactivar "'+razon+'"?')){eliminarSociedad(rut,razon);closeModal('modal-deact-soc');}});})(c.rut,c.razon);
     div.appendChild(btn);lista.appendChild(div);
   });
+}
+
+
+function exportarInfoSII(){
+  var rows = [];
+  rows.push(['INFORMACIÓN VIGENTE SOCIEDADES','','','','','','','','','','','']);
+  rows.push(['N°','Cliente','RUT','Razón Social','Régimen',
+    'Rep. Legal RUT','Rep. Legal Nombre',
+    'Socio RUT','Socio Nombre','% Participación',
+    'Capital Enterado','Capital Por Enterar','Capital Total',
+    'Domicilio','Sucursal']);
+
+  var n=0;
+  ['Talinay','RRG','Solek'].forEach(function(cliente){
+    var emps=COMPANIES.filter(function(c){return c.cliente===cliente;});
+    if(!emps.length) return;
+    rows.push([cliente.toUpperCase(),'','','','','','','','','','','','','','']);
+    emps.forEach(function(c){
+      n++;
+      var reps=c.reps||[];
+      var socios=c.socios||[];
+      var maxRows=Math.max(1,reps.length,socios.length);
+      for(var i=0;i<maxRows;i++){
+        var rep=reps[i]||{rut:'',nombre:''};
+        var soc=socios[i]||{rut:'',nombre:'',pctCap:null};
+        var pct=soc.pctCap!=null?((soc.pctCap||0)*100).toFixed(2)+'%':'';
+        if(i===0){
+          rows.push([n,cliente,c.rut,c.razon,c.regimen||'',
+            rep.rut||'',rep.nombre||'',
+            soc.rut||'',soc.nombre||'',pct,
+            c.capEnterado||'',c.capPorEnterar||'',c.capTotal||'',
+            c.domicilio||'',c.sucursal||'']);
+        } else {
+          rows.push(['','','','','',
+            rep.rut||'',rep.nombre||'',
+            soc.rut||'',soc.nombre||'',pct,
+            '','','','','']);
+        }
+      }
+    });
+  });
+
+  var wb=XLSX.utils.book_new();
+  var ws=XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols']=[{wch:5},{wch:10},{wch:14},{wch:35},{wch:8},
+    {wch:14},{wch:28},{wch:14},{wch:28},{wch:10},
+    {wch:15},{wch:15},{wch:15},{wch:35},{wch:35}];
+  XLSX.utils.book_append_sheet(wb,ws,'Información Vigente');
+  XLSX.writeFile(wb,'Terrazul_InfoSociedades_'+new Date().toISOString().slice(0,10)+'.xlsx');
+  toast('✓ Excel exportado','s');
 }
 
 // INIT
