@@ -14,6 +14,7 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 :root {
   --navy:#0c0c59; --teal:#1a6b8a; --teal-light:#4db8d4; --teal-pale:#e0f4f9;
@@ -204,6 +205,9 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
     </div>
     <div style="margin-bottom:14px">
       <input type="password" id="login-pwd" placeholder="Contraseña" onkeydown="if(event.key==='Enter')checkLogin()" style="text-align:center">
+    </div>
+    <div style="margin-bottom:14px;display:none" id="login-key-wrap">
+      <input type="password" id="login-key" placeholder="Llave de acceso (solo la primera vez)" onkeydown="if(event.key==='Enter')checkLogin()" style="text-align:center">
     </div>
     <div style="display:flex;justify-content:center;margin-top:4px">
       <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="checkLogin()">Ingresar</button>
@@ -430,11 +434,15 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
           <div><label class="fl">N° de Cuenta</label><input type="text" id="cfg-cuenta" placeholder="89439329"></div>
           <div><label class="fl">Firmante</label><input type="text" id="cfg-firmante" placeholder="Nancy Aguilar V."></div>
           <div class="fg-full">
-            <label class="fl">Clave Firma Digital (SII) <span style="color:var(--gray-400);font-weight:400">— se guarda localmente en tu navegador</span></label>
+            <label class="fl">Clave Firma Digital (SII) <span style="color:var(--gray-400);font-weight:400">— se guarda solo en este navegador, nunca en la planilla</span></label>
             <div style="display:flex;gap:8px">
               <input type="password" id="cfg-clave" placeholder="••••••••" style="flex:1">
               <button class="btn btn-secondary btn-sm" onclick="toggleVerClaveCfg()" id="btn-cfg-ver">👁 Ver</button>
             </div>
+          </div>
+          <div class="fg-full">
+            <label class="fl">Llave de acceso <span style="color:var(--gray-400);font-weight:400">— se guarda solo en este navegador; vacío = no cambiar</span></label>
+            <input type="password" id="cfg-apikey" placeholder="••••••••">
           </div>
         </div>
         <button class="btn btn-primary" onclick="guardarConfig()">💾 Guardar Configuración</button>
@@ -824,6 +832,15 @@ async function checkLogin(){
   if(!user){ errEl.style.display='block'; errEl.textContent='Ingresa el usuario'; return; }
   if(!pwd){  errEl.style.display='block'; errEl.textContent='Ingresa la contraseña'; return; }
 
+  // Llave de acceso: si se ingresó en el login, guardarla en este navegador
+  const keyInp = document.getElementById('login-key');
+  if(keyInp && keyInp.value.trim()) setApiKey(keyInp.value.trim());
+  if(!getApiKey()){
+    document.getElementById('login-key-wrap').style.display='block';
+    errEl.style.display='block'; errEl.textContent='Ingresa la llave de acceso';
+    return;
+  }
+
   // Deshabilitar botón mientras valida
   if(btn){ btn.disabled=true; btn.textContent='Validando...'; }
 
@@ -834,6 +851,16 @@ async function checkLogin(){
     let accesoOk = false;
     try {
       const data = await apiGet('Acceso');
+      if(data && data.error){
+        if(data.error === 'unauthorized'){
+          setApiKey('');
+          document.getElementById('login-key-wrap').style.display='block';
+          errEl.style.display='block'; errEl.textContent='Llave de acceso incorrecta';
+        } else {
+          errEl.style.display='block'; errEl.textContent='No se pudo conectar: ' + data.error;
+        }
+        return;
+      }
       if(data && data.length > 1){
         const [hdr, ...rows] = data;
         const fila = rows.find(r => String(r[0]).toLowerCase() === user);
@@ -935,29 +962,30 @@ const CONFIG_BASE = {
 
 // ===== API =====
 // Script 1: Datos (cuenta personal) — Lee/escribe Sheet y Drive
-const API_DATOS   = 'https://script.google.com/macros/s/AKfycbwWUPfIbnECtYogS8wZgmH6hhYH-jMxLcdgEMHYWIa0Bn4t-7XVtYvLZrPrh40HsWRbPw/exec';
+const API_DATOS   = 'https://script.google.com/macros/s/AKfycbxiYVQqWmKUg0dCVceXETYVPRsPFqWmV6u1mlw6ncIp2Rc8qdDGYM1cHOetQI3q6MqpCw/exec';
 // Script 2: Correos (naguilar@trzl.cl) — Crea borradores Gmail
-const API_CORREOS = 'https://script.google.com/macros/s/AKfycbwWWjHQp_Zmd6krgFFRhifGr52kyTS6u5DoOXwODd2BI4WnaecxDNXTjVk-BsRt-ZoY/exec';
+const API_CORREOS = 'https://script.google.com/macros/s/AKfycbyMiflQzeN8TE8GUrt0mUWMYwNuePT1yazdb2AtTm5cwxBZ0grrjqhVmm69HOMOyWMb/exec';
+
+// ===== LLAVE DE ACCESO (solo en este navegador; nunca en el código ni en la planilla) =====
+function getApiKey(){ try { return localStorage.getItem('trzl_api_key') || ''; } catch(e){ return ''; } }
+function setApiKey(k){ try { k ? localStorage.setItem('trzl_api_key', k) : localStorage.removeItem('trzl_api_key'); } catch(e){} }
+function avisoLlave(resp){
+  if(resp && resp.error === 'unauthorized') toast('🔒 Llave de acceso inválida o faltante. Revísala en Configuración','e');
+  return resp;
+}
 
 async function apiGet(sheet){
-  try {
-    const r = await fetch(`${API_DATOS}?sheet=${sheet}`);
-    const text = await r.text();
-    return JSON.parse(text);
-  } catch(e) {
-    console.error('apiGet error:', e);
-    return { error: e.toString() };
-  }
+  return apiPost({ action:'read', sheet });
 }
 
 async function apiPost(payload){
   try {
     const r = await fetch(API_DATOS, {
       method: 'POST',
-      body: JSON.stringify(payload)
+      body: JSON.stringify({ ...payload, key: getApiKey() })
     });
     const text = await r.text();
-    try { return JSON.parse(text); } catch(e){ return { ok: true }; }
+    try { return avisoLlave(JSON.parse(text)); } catch(e){ return { error: 'Respuesta inválida del servidor' }; }
   } catch(e) {
     console.error('apiPost error:', e);
     return { error: e.toString() };
@@ -968,10 +996,10 @@ async function apiCorreos(payload){
   try {
     const r = await fetch(API_CORREOS, {
       method: 'POST',
-      body: JSON.stringify(payload)
+      body: JSON.stringify({ ...payload, key: getApiKey() })
     });
     const text = await r.text();
-    try { return JSON.parse(text); } catch(e){ return { ok: true }; }
+    try { return avisoLlave(JSON.parse(text)); } catch(e){ return { error: 'Respuesta inválida del servidor' }; }
   } catch(e) {
     console.error('apiCorreos error:', e);
     return { error: e.toString() };
@@ -1087,9 +1115,10 @@ async function cargarDesdeSheets(){
         if(k==='firmante')    DB.config.firmante   = v;
         if(k==='dia_envio')   DB.config.dia        = Number(v);
         if(k==='hora_envio')  DB.config.hora       = v;
-        if(k==='clave_firma') DB.config.claveFirma = v;
       });
     }
+    // La clave de firma vive solo en este navegador
+    DB.config.claveFirma = getClaveFirmaLocal();
 
     // Parsear Acceso — actualizar cache _usuarios y validar sesión activa
     if(data.Acceso && data.Acceso.length > 1){
@@ -2402,12 +2431,19 @@ async function guardarConfig(){
     hora: document.getElementById('cfg-hora').value||'08:30',
     claveFirma: document.getElementById('cfg-clave').value,
   };
+  setClaveFirmaLocal(DB.config.claveFirma);
+  const nuevaLlave = document.getElementById('cfg-apikey').value.trim();
+  if(nuevaLlave){ setApiKey(nuevaLlave); document.getElementById('cfg-apikey').value=''; }
   saveDB(); await syncConfig(); toast('✅ Configuración guardada','s');
 }
 
+function getClaveFirmaLocal(){ try { return localStorage.getItem('trzl_clave_firma') || ''; } catch(e){ return ''; } }
+function setClaveFirmaLocal(v){ try { v ? localStorage.setItem('trzl_clave_firma', v) : localStorage.removeItem('trzl_clave_firma'); } catch(e){} }
+
 // ===== BACKUP =====
 function exportarBackup(){
-  const data = JSON.stringify(DB, null, 2);
+  // El backup nunca incluye la clave de la firma
+  const data = JSON.stringify({ ...DB, config: { ...DB.config, claveFirma: '' } }, null, 2);
   const blob = new Blob([data],{type:'application/json'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a'); a.href=url;
@@ -2470,7 +2506,7 @@ function copiarDato(texto, nombre){
 }
 
 function copiarClave(){
-  const clave = DB.config.claveFirma||'';
+  const clave = getClaveFirmaLocal() || DB.config.claveFirma || '';
   if(!clave){ toast('No hay clave guardada. Agrégala en Configuración','w'); return; }
   copiarDato(clave,'Clave firma');
 }
@@ -2484,7 +2520,7 @@ function toggleVerClaveCfg(){
 }
 function toggleClave(){
   claveVisible = !claveVisible;
-  const clave = DB.config.claveFirma||'';
+  const clave = getClaveFirmaLocal() || DB.config.claveFirma || '';
   const el = document.getElementById('sii-clave');
   const btn = document.getElementById('btn-ver-clave');
   if(!clave){ toast('No hay clave guardada. Agrégala en Configuración','w'); return; }
@@ -2885,15 +2921,11 @@ async function guardarSociedad(){
 
 
 function abrirSII(){
-  const url = 'https://www.sii.cl/servicios_online/1039-1183.html';
-  // Intentar abrir en Chrome directamente
-  const a = document.createElement('a');
-  a.href = url;
-  a.target = '_blank';
-  a.rel = 'noopener';
-  a.click();
-  // Copiar al portapapeles como respaldo
-  navigator.clipboard.writeText(url).catch(()=>{});
+  // Se abre SIN 'noopener' para que la pestaña del SII pueda entregarle a la app
+  // el PDF de la factura recién firmada (ver RECEPCIÓN DE FACTURAS DESDE EL SII).
+  const url = 'https://www1.sii.cl/factura_sii/factura_sii.htm';
+  const w = window.open(url, 'sii-terrazul');
+  if(!w) toast('El navegador bloqueó la ventana del SII. Permite ventanas emergentes para esta página.','w');
 }
 
 
@@ -2934,7 +2966,6 @@ async function syncConfig(){
       ['firmante',    cfg.firmante||''],
       ['dia_envio',   cfg.dia||5],
       ['hora_envio',  cfg.hora||'08:30'],
-      ['clave_firma', cfg.claveFirma||''],
       ['correo_envio','naguilar@trzl.cl'],
     ];
     await apiPost({ action:'write', sheet:'Configuracion', data:rows });
@@ -2948,115 +2979,156 @@ async function syncAcceso(usuario, hash){
   await syncUsuariosSheet();
 }
 
-// ===== SUBIR PDF A DRIVE =====
+// ===== LECTURA DE FACTURAS SII (sin IA) =====
+// El PDF del SII trae texto: se lee en el navegador con pdf.js y se compara con la fila.
+if(window.pdfjsLib){
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+const RUT_EMISOR = '77.685.857-9';
+const MESES_ES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+const numCL   = s => Number(String(s).replace(/\./g,'').replace(',','.'));
+const normRut = s => String(s||'').replace(/[^0-9kK]/g,'').toUpperCase();
+
+async function extraerTextoPDF(data){
+  if(!window.pdfjsLib) throw new Error('No se cargó el lector de PDF');
+  const pdf  = await pdfjsLib.getDocument({ data }).promise;
+  const page = await pdf.getPage(1);
+  const tc   = await page.getTextContent();
+  return tc.items.map(i => i.str).join(' ').replace(/\s+/g,' ');
+}
+
+function parsearFacturaSII(t){
+  const r = {};
+  const mFolio = t.match(/ELECTR[OÓ]NICA\s*N\s*[º°o]\s*(\d+)/i);
+  r.folio = mFolio ? mFolio[1] : '';
+  const mEmisor = t.match(/R\.U\.T\.?:\s*([\d\.]+\s*-\s*[\dkK])\s*FACTURA/i);
+  r.rutEmisor = mEmisor ? mEmisor[1].replace(/\s/g,'') : '';
+  const mRec = t.match(/SE[ÑN]OR\(ES\):\s*(.+?)\s*R\.U\.T\.?:\s*([\d\.]+\s*-\s*[\dkK])/);
+  r.receptor    = mRec ? mRec[1].trim() : '';
+  r.rutReceptor = mRec ? mRec[2].replace(/\s/g,'') : '';
+  const mFecha = t.match(/Fecha Emisi[oó]n:\s*(\d{1,2})\s+de\s+([A-Za-zñÑ]+)\s+del?\s+(\d{4})/i);
+  if(mFecha){ r.dia = Number(mFecha[1]); r.mes = MESES_ES.indexOf(mFecha[2].toLowerCase())+1; r.anio = Number(mFecha[3]); }
+  const mUF = t.match(/([\d\.,]+)\s*UF\s+([\d\.]+(?:,\d+)?)\s/);
+  r.cantidadUF = mUF ? numCL(mUF[1]) : null;
+  r.precioUF   = mUF ? numCL(mUF[2]) : null;
+  const mTot = t.match(/TOTAL\s*\$\s*([\d\.]+)/);
+  r.total  = mTot ? numCL(mTot[1]) : null;
+  r.exenta = /NO AFECTA O\s+EXENTA/i.test(t);
+  return r;
+}
+
+// Compara la factura con la fila de la app. Devuelve lista de diferencias (vacía = todo OK).
+function validarFactura(d, f, m){
+  const dif = [];
+  if(!d.folio) dif.push({campo:'Folio', msg:'No se pudo leer el folio del PDF'});
+  if(normRut(d.rutEmisor) !== normRut(RUT_EMISOR)) dif.push({campo:'Emisor', msg:`PDF: ${d.rutEmisor||'?'} — esperado: ${RUT_EMISOR}`});
+  if(!f.rut) dif.push({campo:'RUT', msg:`La fila no tiene RUT en la app (PDF: ${d.rutReceptor||'?'})`});
+  else if(normRut(d.rutReceptor) !== normRut(f.rut)) dif.push({campo:'RUT', msg:`PDF: ${d.rutReceptor||'?'} — App: ${f.rut}`});
+  if(d.total==null || Math.abs(d.total - Number(f.totalClp||0)) > 1) dif.push({campo:'Total', msg:`PDF: ${fmtClp(d.total)} — App: ${fmtClp(f.totalClp)}`});
+  if(d.precioUF!=null && m.uf && Math.abs(d.precioUF - Number(m.uf)) >= 0.01) dif.push({campo:'Valor UF', msg:`PDF: ${d.precioUF} — App: ${m.uf}`});
+  if(d.cantidadUF!=null && f.totalUf!=null && Math.abs(d.cantidadUF - Number(f.totalUf)) > 0.0001) dif.push({campo:'Cantidad UF', msg:`PDF: ${d.cantidadUF} — App: ${f.totalUf}`});
+  if(d.mes !== Number(m.mes) || d.anio !== Number(m.anio)) dif.push({campo:'Período', msg:`PDF: ${d.mes||'?'}/${d.anio||'?'} — App: ${m.mes}/${m.anio}`});
+  const folioApp = String(f.folio||'').trim();
+  if(folioApp && d.folio && folioApp !== d.folio) dif.push({campo:'Folio', msg:`PDF: ${d.folio} — App: ${folioApp}`});
+  return dif;
+}
+
+const arrayBufferToBase64 = buf => {
+  const bytes = new Uint8Array(buf); let bin = '';
+  for(let i=0;i<bytes.length;i+=0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i,i+0x8000));
+  return btoa(bin);
+};
+
+// Procesa una factura para una fila: valida, sube a Drive con su nombre final y registra el folio.
+// auto=true (llegó desde el SII): ante cualquier diferencia NO registra nada y lo informa.
+async function procesarFacturaPDF(mesIdx, filaIdx, buffer, { auto=false } = {}){
+  const m = DB.meses[mesIdx];
+  const f = m.filas[filaIdx];
+  const datos = parsearFacturaSII(await extraerTextoPDF(buffer.slice(0)));
+  const dif = validarFactura(datos, f, m);
+
+  if(dif.length){
+    const texto = dif.map(v=>`⚠️ ${v.campo}: ${v.msg}`).join('\n');
+    if(auto) return { ok:false, folio:datos.folio, cliente:f.razon, diferencias:dif };
+    if(!datos.folio){ alert('No se pudo leer el PDF:\n\n' + texto); return { ok:false, diferencias:dif }; }
+    if(!confirm(`La factura no calza con la app:\n\n${texto}\n\n¿Subirla igual?`)) return { ok:false, diferencias:dif };
+  }
+
+  const nombre = `FE-${datos.folio} Terrazul - ${f.razon} ${padMes(m.mes)}-${m.anio}.pdf`;
+  const resp = await apiPost({ action:'upload-pdf', filename:nombre, mimeType:'application/pdf', data: arrayBufferToBase64(buffer) });
+  if(!resp.ok) return { ok:false, error: 'Error al subir a Drive: ' + (resp.error||'sin respuesta') };
+
+  f.folio  = datos.folio;
+  f.pdfUrl = resp.url;
+  saveDB();
+  await saveFacturacionSheets();
+  if(typeof renderFacturacion==='function') renderFacturacion();
+  if(typeof renderDashboard==='function') renderDashboard();
+  return { ok:true, folio:datos.folio, cliente:f.razon, archivo:nombre, url:resp.url, diferencias:dif };
+}
+
+// ===== SUBIR PDF A DRIVE (manual, botón 📎 Subir) =====
 async function subirPDF(filaIdx, inputEl){
   const file = inputEl.files[0];
   if(!file) return;
-  if(file.type !== 'application/pdf'){ toast('Solo se aceptan archivos PDF','e'); return; }
-
-  const m = DB.meses[mesSelIdx];
-  const f = m.filas[filaIdx];
-
-  // Confirmar si ya hay un PDF subido (solo si la URL es válida)
-  const tienePDF = f.pdfUrl && f.pdfUrl.startsWith('http');
-  if(tienePDF){
-    if(!confirm(`¿Reemplazar la factura ya subida para ${f.razon}?\nEsto no elimina el archivo anterior en Drive.`)){
-      inputEl.value = '';
-      return;
-    }
+  if(file.type !== 'application/pdf'){ toast('Solo se aceptan archivos PDF','e'); inputEl.value=''; return; }
+  const f = DB.meses[mesSelIdx].filas[filaIdx];
+  if(f.pdfUrl && f.pdfUrl.startsWith('http')){
+    if(!confirm(`¿Reemplazar la factura ya subida para ${f.razon}?\nEsto no elimina el archivo anterior en Drive.`)){ inputEl.value=''; return; }
   }
-
-  toast('⏳ Subiendo y analizando factura con IA...','w');
-
+  toast('⏳ Leyendo factura...','w');
   try {
-    // Leer como base64
-    const base64 = await new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result.split(',')[1]);
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-
-    // PASO 1: Subir a Drive
-    // Si ya tiene folio usar nombre correcto, si no nombre temporal
-    toast('⏳ Subiendo a Drive...','w');
-    const folioActualSubida = (f.folio||'').trim();
-    const nombreSubida = folioActualSubida
-      ? `FE-${folioActualSubida} Terrazul - ${f.razon} ${padMes(m.mes)}-${m.anio}.pdf`
-      : `temp_${f.razon}_${padMes(m.mes)}-${m.anio}.pdf`;
-    const respDrive = await apiPost({
-      action: 'upload-pdf', filename: nombreSubida,
-      mimeType: 'application/pdf', data: base64
-    });
-
-    if(!respDrive.ok){
-      toast('Error al subir PDF: ' + (respDrive.error||'Sin respuesta'), 'e');
-      inputEl.value = '';
-      return;
-    }
-    m.filas[filaIdx].pdfUrl = respDrive.url;
-
-    // PASO 2: Analizar con Gemini para extraer folio y validar
-    toast('🤖 Analizando con Gemini...','w');
-    const respGemini = await apiPost({
-      action:     'analizar-factura',
-      fileId:     respDrive.id,
-      montoApp:   f.totalClp||0,
-      ufApp:      m.uf,
-      mesApp:     m.label,
-      rutCliente: f.rut||''
-    });
-
-    console.log('Gemini respuesta:', JSON.stringify(respGemini));
-    if(respGemini.ok && respGemini.folio){
-      // Actualizar folio en la fila
-      const folioExistente = (f.folio||'').trim();
-      if(!folioExistente){
-        m.filas[filaIdx].folio = respGemini.folio;
-      } else if(folioExistente !== String(respGemini.folio)){
-        if(confirm(`La factura tiene folio ${respGemini.folio} pero la app tiene ${folioExistente}.\n¿Actualizar?`)){
-          m.filas[filaIdx].folio = respGemini.folio;
-        }
-      }
-
-      // PASO 3: Renombrar en Drive con folio correcto (solo si subió con nombre temp)
-      const folioFinal = m.filas[filaIdx].folio;
-      const nombreFinal = `FE-${folioFinal} Terrazul - ${f.razon} ${padMes(m.mes)}-${m.anio}.pdf`;
-      if(!folioActualSubida){
-        // Solo renombrar si subió con nombre temporal
-        console.log('Renombrando archivo:', respDrive.id, '→', nombreFinal);
-        const respRename = await apiGet(`rename&fileId=${encodeURIComponent(respDrive.id)}&nombre=${encodeURIComponent(nombreFinal)}`);
-        console.log('Rename respuesta:', JSON.stringify(respRename));
-        if(respRename.ok) toast('✅ Archivo: ' + nombreFinal,'s');
-      }
-
-      // Mostrar validaciones
-      if(respGemini.todoOk){
-        toast('✅ PDF · Folio · Monto · UF · Mes · RUT — Todo OK','s');
-      } else {
-        const errores = respGemini.validaciones.map(v => `⚠️ ${v.campo}: ${v.msg}`).join('\n');
-        alert('PDF subido.\n\nSe encontraron diferencias:\n\n' + errores);
-        toast('⚠️ PDF subido con diferencias','w');
-      }
-    } else if(!respGemini.ok){
-      console.error('Gemini error:', respGemini.error);
-      // Renombrar con lo que tenemos aunque Gemini falle
-      const folioFinal = f.folio||'sin-folio';
-      const nombreFinal = `FE-${folioFinal} Terrazul - ${f.razon} ${padMes(m.mes)}-${m.anio}.pdf`;
-      await apiGet(`rename&fileId=${respDrive.id}&nombre=${encodeURIComponent(nombreFinal)}`);
-      toast('✅ PDF subido · ⚠️ Gemini no disponible','w');
-    }
-
-    saveDB();
-    await saveFacturacionSheets();
-    renderFacturacion();
-
-  } catch(err) {
-    console.error('subirPDF error completo:', err);
+    const r = await procesarFacturaPDF(mesSelIdx, filaIdx, await file.arrayBuffer());
+    if(r.ok) toast(r.diferencias.length ? `⚠️ FE-${r.folio} subida con diferencias` : `✅ FE-${r.folio} · RUT · Monto · UF · Período — Todo OK`, r.diferencias.length?'w':'s');
+    else if(r.error) toast(r.error,'e');
+  } catch(err){
+    console.error('subirPDF error:', err);
     toast('Error: ' + (err.message||err.toString()),'e');
   }
   inputEl.value = '';
 }
+
+// ===== RECEPCIÓN DE FACTURAS DESDE EL SII =====
+// La pestaña del SII abierta con "Ir al SII a facturar" envía el PDF recién firmado:
+//   window.opener.postMessage({ type:'terrazul-factura-sii', pdf: <ArrayBuffer> }, 'https://terrazulapp.github.io')
+// La app busca la fila (mismo período, RUT y total, sin folio), valida, sube a Drive y registra el folio.
+// Responde a la pestaña del SII con { type:'terrazul-factura-resultado', ... }.
+window.__ultimaFacturaSII = null;
+window.addEventListener('message', async ev => {
+  if(ev.origin !== 'https://www1.sii.cl') return;
+  const d = ev.data;
+  if(!d || d.type !== 'terrazul-factura-sii' || !d.pdf) return;
+  const responder = res => {
+    window.__ultimaFacturaSII = res;
+    try { ev.source.postMessage({ type:'terrazul-factura-resultado', ...res }, ev.origin); } catch(e){}
+  };
+  if(!sessionStorage.getItem('trzl_auth')) return responder({ ok:false, error:'La app no tiene sesión iniciada' });
+  try {
+    const datos = parsearFacturaSII(await extraerTextoPDF(d.pdf.slice(0)));
+    if(!datos.folio) return responder({ ok:false, error:'No se pudo leer el folio del PDF' });
+    const mesIdx = DB.meses.findIndex(m => Number(m.mes)===datos.mes && Number(m.anio)===datos.anio);
+    if(mesIdx < 0) return responder({ ok:false, folio:datos.folio, error:`No existe el mes ${datos.mes}/${datos.anio} en la app` });
+    const filas = DB.meses[mesIdx].filas;
+    const yaReg = filas.findIndex(f => String(f.folio||'').trim() === datos.folio);
+    if(yaReg >= 0 && filas[yaReg].pdfUrl) return responder({ ok:true, folio:datos.folio, cliente:filas[yaReg].razon, yaRegistrada:true });
+    const cand = filas.map((f,i)=>({f,i})).filter(({f}) =>
+      (!String(f.folio||'').trim() || String(f.folio).trim()===datos.folio) &&
+      f.rut && normRut(f.rut)===normRut(datos.rutReceptor) &&
+      Math.abs(Number(f.totalClp||0) - (datos.total||0)) <= 1);
+    if(cand.length !== 1){
+      return responder({ ok:false, folio:datos.folio, receptor:datos.receptor, rut:datos.rutReceptor, total:datos.total,
+        error: cand.length ? 'Más de una fila calza; súbela con 📎' : 'Ninguna fila calza (revisa RUT y total en la app)' });
+    }
+    toast(`⏳ Registrando FE-${datos.folio} desde el SII...`,'w');
+    const r = await procesarFacturaPDF(mesIdx, cand[0].i, d.pdf, { auto:true });
+    if(r.ok) toast(`✅ FE-${r.folio} ${r.cliente} registrada y guardada en Drive`,'s');
+    else toast(`⚠️ FE-${r.folio||'?'} no registrada: ${r.error || r.diferencias.map(x=>x.campo).join(', ')}`,'e');
+    responder(r);
+  } catch(err){
+    console.error('recepción SII:', err);
+    responder({ ok:false, error: err.message || String(err) });
+  }
+});
 
 // ===== PRESUPUESTO DE CAJA =====
 
@@ -4555,6 +4627,8 @@ async function pptoImportarExcel(input, seccion){
 }
 
 document.addEventListener('DOMContentLoaded', async ()=>{
+  // Migración: mover la clave de firma guardada antes en el DB local a su lugar propio
+  if(!getClaveFirmaLocal() && DB.config && DB.config.claveFirma) setClaveFirmaLocal(DB.config.claveFirma);
   checkAuth();
   // Registrar Service Worker para PWA
   if('serviceWorker' in navigator){
