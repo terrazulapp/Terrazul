@@ -371,7 +371,8 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
     <div style="margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
       <div class="stitle" style="margin:0">📧 Correos — </div>
       <select id="correo-mes-sel" style="width:160px" onchange="renderCorreos()"></select>
-      <button class="btn btn-primary" onclick="programarTodos()">📅 Programar todos (día 5, 8:30 AM)</button>
+      <button class="btn btn-primary" onclick="crearBorradoresListos()" id="btn-borradores-listos">✉️ Crear borradores listos</button>
+      <button class="btn btn-secondary" onclick="verificarEnvios()" id="btn-verificar-envios">🔄 Verificar envíos</button>
     </div>
     <div id="correos-list"></div>
   </div>
@@ -682,6 +683,7 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
         <div class="stitle" style="font-size:13px;margin-bottom:10px">📧 Contacto de Correo</div>
         <div class="fg">
           <div><label class="fl">Dirigido a</label><input type="text" id="cli-contacto" placeholder="Martha y Guillermo"></div>
+          <div><label class="fl">Saludo del correo <span style="color:var(--gray-400);font-weight:400">— si se deja vacío, se genera solo</span></label><input type="text" id="cli-saludo" placeholder="Estimada Yohanna"></div>
           <div><label class="fl">Email principal</label><input type="text" id="cli-email1" placeholder="correo@empresa.com"></div>
           <div class="fg-full"><label class="fl">Email principal 2 (opcional)</label><input type="text" id="cli-email2" placeholder="correo2@empresa.com"></div>
           <div class="fg-full"><label class="fl">CC (separar con coma)</label><input type="text" id="cli-cc" placeholder="cc1@empresa.com, cc2@empresa.com"></div>
@@ -964,7 +966,7 @@ const CONFIG_BASE = {
 // Script 1: Datos (cuenta personal) — Lee/escribe Sheet y Drive
 const API_DATOS   = 'https://script.google.com/macros/s/AKfycbxiYVQqWmKUg0dCVceXETYVPRsPFqWmV6u1mlw6ncIp2Rc8qdDGYM1cHOetQI3q6MqpCw/exec';
 // Script 2: Correos (naguilar@trzl.cl) — Crea borradores Gmail
-const API_CORREOS = 'https://script.google.com/macros/s/AKfycbyMiflQzeN8TE8GUrt0mUWMYwNuePT1yazdb2AtTm5cwxBZ0grrjqhVmm69HOMOyWMb/exec';
+const API_CORREOS = 'https://script.google.com/macros/s/AKfycbwNx9jTrMsvp-LKZJZQ1F0Gbm0iA1Y6dzNW2zadgh194YDfswi1mPnG2L_57lnlyG2q/exec';
 
 // ===== LLAVE DE ACCESO (solo en este navegador; nunca en el código ni en la planilla) =====
 function getApiKey(){ try { return localStorage.getItem('trzl_api_key') || ''; } catch(e){ return ''; } }
@@ -1039,7 +1041,7 @@ function saveDB(){
 // Guardar historial de facturación en Sheets
 async function saveFacturacionSheets(){
   try {
-    const rows = [['label','mes','anio','uf','clave','rut','razon','empresas','tarifa','totalUf','totalClp','folio','desc','grupo','correoEnviado','pdfUrl','extra']];
+    const rows = [['label','mes','anio','uf','clave','rut','razon','empresas','tarifa','totalUf','totalClp','folio','desc','grupo','correoEnviado','pdfUrl','extra','borrador']];
     DB.meses.forEach(m => {
       m.filas.forEach(f => {
         rows.push([
@@ -1047,7 +1049,7 @@ async function saveFacturacionSheets(){
           f.clave||'', f.rut||'', f.razon||'', f.empresas||0,
           f.tarifa||0, f.totalUf||0, f.totalClp||0,
           f.folio||'', f.desc||'', f.grupo?'SI':'NO', f.correoEnviado?'SI':'NO', f.pdfUrl||'',
-          f.extra?'SI':'NO'
+          f.extra?'SI':'NO', f.borrador?'SI':'NO'
         ]);
       });
     });
@@ -1083,6 +1085,7 @@ async function cargarDesdeSheets(){
           cli.email1   = r[2]||'';
           cli.email2   = r[3]||'';
           cli.cc       = r[4]||'';
+          cli.saludo   = r[5]||'';
         }
       });
     }
@@ -1174,7 +1177,8 @@ async function cargarDesdeSheets(){
             folio: r[11]||'', desc: r[12]||'',
             grupo: r[13]==='SI', correoEnviado: r[14]==='SI',
             pdfUrl: (r.length>15 && r[15] && r[15]!=='undefined' ? r[15] : ''),
-            extra: esExtra
+            extra: esExtra,
+            borrador: r[17]==='SI'
           });
         }
       });
@@ -1348,6 +1352,7 @@ function renderDashboard(){
   const totalFilas = mesActivo ? mesActivo.filas.filter(f=>f.activo!==false).length : 0;
   const totalCLP = mesActivo ? mesActivo.filas.reduce((s,f)=>s+(f.totalClp||0),0) : 0;
   const correosPendientes = mesActivo ? mesActivo.filas.filter(f=>!f.correoEnviado).length : 0;
+  const correosBorrador   = mesActivo ? mesActivo.filas.filter(f=>!f.correoEnviado && f.borrador).length : 0;
 
   document.getElementById('dash-stats').innerHTML = `
     <div class="stat-card c-navy" style="cursor:pointer" onclick="navTo('facturacion')">
@@ -1377,7 +1382,7 @@ function renderDashboard(){
       <div style="margin-bottom:6px">📅 <strong>${mesActivo.label}</strong></div>
       <div style="margin-bottom:4px">💱 UF: <strong>$${fmtNum(mesActivo.uf)}</strong></div>
       <div style="margin-bottom:4px">🧾 Folios ingresados: <strong>${totalFacturas}/${totalFilas}</strong></div>
-      <div>📧 Correos: <strong>${mesActivo.filas.filter(f=>f.correoEnviado).length} enviados</strong></div>
+      <div>📧 Correos: <strong>${mesActivo.filas.filter(f=>f.correoEnviado).length} enviados</strong> · ${correosBorrador} en borrador</div>
     `;
     const tbody = document.getElementById('dash-tbody');
     tbody.innerHTML = mesActivo.filas.map(f=>`
@@ -1506,6 +1511,16 @@ function recalcTotales(){
 
 function eliminarFila(i){
   const m = DB.meses[mesSelIdx];
+  const f = m.filas[i];
+  const folio = String(f.folio||'').trim();
+  const msg = folio
+    ? `⚠️ "${f.razon}" tiene la factura FE-${folio} emitida.
+
+Eliminar la fila NO anula la factura en el SII (para eso se emite una nota de crédito).
+
+¿Eliminar la fila de la app de todas formas?`
+    : `¿Eliminar la fila de "${f.razon}" (${fmtClp(f.totalClp||0)})?`;
+  if(!confirm(msg)) return;
   m.filas.splice(i,1);
   renderMesPanel();
 }
@@ -1622,7 +1637,9 @@ function renderListaCorreos(){
   if(grupoFilas.length){
     const totalGrupo = grupoFilas.reduce((s,f)=>s+(f.totalClp||0),0);
     const adjuntos = grupoFilas.map(f=>f.folio?`FE-${f.folio} Terrazul - ${f.razon} ${padMes(m.mes)}-${m.anio}.pdf`:'[Sin folio]').join(', ');
-    const enviado = grupoFilas[0].correoEnviado;
+    const filaGrupo = grupoFilas.every(f=>f.correoEnviado) ? {correoEnviado:true}
+                    : grupoFilas.every(f=>f.borrador||f.correoEnviado) ? {borrador:true}
+                    : grupoFilas.every(filaLista) ? {folio:'x', pdfUrl:'http'} : {};
     html += `
       <div class="correo-card">
         <div class="correo-header">
@@ -1631,9 +1648,9 @@ function renderListaCorreos(){
             <div style="font-size:11px;color:var(--gray-400);margin-top:2px">3 PDFs + Excel detalle · Total: <strong>${fmtClp(totalGrupo)}</strong></div>
           </div>
           <div style="display:flex;gap:6px;align-items:center">
-            ${enviado?'<span class="badge badge-green">✓ Enviado</span>':'<span class="badge badge-amber">⏳ Pendiente</span>'}
+            ${badgeCorreo(filaGrupo)}
             <button class="btn btn-secondary btn-sm" onclick="verCorreoGrupo(${idx})">👁 Ver</button>
-            <button class="btn btn-gold btn-sm" onclick="programarGrupo(${idx})">📅 Programar</button>
+            <button class="btn btn-secondary btn-sm" onclick="marcarEnviado(${idx},null,true)">${filaGrupo.correoEnviado?'↩︎ Desmarcar':'✓ Marcar enviado'}</button>
           </div>
         </div>
         <div style="font-size:11px;color:var(--gray-600)">
@@ -1657,14 +1674,14 @@ function renderListaCorreos(){
             <div style="font-size:11px;color:var(--gray-400);margin-top:2px">${fmtClp(f.totalClp||0)} · ${f.desc?`<span style="color:var(--amber)">${f.desc}</span>`:'Servicio periódico'}</div>
           </div>
           <div style="display:flex;gap:6px;align-items:center">
-            ${f.correoEnviado?'<span class="badge badge-green">✓ Enviado</span>':'<span class="badge badge-amber">⏳ Pendiente</span>'}
+            ${badgeCorreo(f)}
             <button class="btn btn-secondary btn-sm" onclick="verCorreoIndiv(${idx},${m.filas.indexOf(f)})">👁 Ver</button>
-            <button class="btn btn-gold btn-sm" onclick="programarIndiv(${idx},${m.filas.indexOf(f)})">📅 Programar</button>
+            <button class="btn btn-secondary btn-sm" onclick="marcarEnviado(${idx},${m.filas.indexOf(f)},false)">${f.correoEnviado?'↩︎ Desmarcar':'✓ Marcar enviado'}</button>
           </div>
         </div>
         <div style="font-size:11px;color:var(--gray-600)">
           <strong>Asunto:</strong> ${generarAsunto(m, f, false)}<br>
-          <strong>Para:</strong> ${cli.contacto||'—'} (${[cli.email1,cli.email2].filter(Boolean).join(', ')||'Sin email'})<br>
+          <strong>Para:</strong> ${cli.contacto||'—'} (${[cli.email1,cli.email2].filter(Boolean).join(', ')||'Sin email'}) · <strong>Saludo:</strong> ${saludoCliente(cli)}<br>
           <strong>CC:</strong> ${cli.cc||'—'}<br>
           <strong>Adjunto:</strong> ${adjunto}
         </div>
@@ -1674,6 +1691,9 @@ function renderListaCorreos(){
   if(!html) html = '<p style="color:var(--gray-400);font-size:13px">No hay correos para este mes.</p>';
   cont.innerHTML = html;
 }
+
+// Saludo: el definido en la ficha del cliente manda; si no hay, se genera desde el nombre
+function saludoCliente(cli){ return (cli && cli.saludo) ? cli.saludo : generarSaludo((cli&&cli.contacto)||''); }
 
 function generarSaludo(contacto){
   if(!contacto) return 'Estimados';
@@ -1724,7 +1744,7 @@ ${cfg.firmante}`,
   }
 
   const cli = DB.clientes.find(c=>c.clave===fila.clave)||{};
-  const sal = generarSaludo(cli.contacto||'');
+  const sal = saludoCliente(cli);
   return {
     texto: `${sal},
 
@@ -1737,6 +1757,33 @@ Saludos,
 ${cfg.firmante}`,
     html: `${sal},<br><br>Junto con saludar, adjunto factura emitida a ${fila.razon} por servicios correspondientes a ${mesNombre} ${anio}${fila.desc?' ('+fila.desc+')':''}.<br><br>Los datos para la transferencia son los siguientes:${datosHTML}<br><br>Saludos,<br>${cfg.firmante}`
   };
+}
+
+
+// ===== ESTADO DEL CORREO DE UNA FILA =====
+// sinFactura → listo (folio + PDF) → borrador (creado en Gmail) → enviado (verificado o marcado)
+function filaLista(f){ return !!(String(f.folio||'').trim() && f.pdfUrl && String(f.pdfUrl).startsWith('http')); }
+function estadoCorreo(f){
+  if(f.correoEnviado) return 'enviado';
+  if(f.borrador) return 'borrador';
+  return filaLista(f) ? 'listo' : 'sinFactura';
+}
+function badgeCorreo(f){
+  return ({
+    enviado:   '<span class="badge badge-green">✓ Enviado</span>',
+    borrador:  '<span class="badge badge-teal">✉️ Borrador creado</span>',
+    listo:     '<span class="badge badge-amber">⏳ Listo para borrador</span>',
+    sinFactura:'<span class="badge badge-gray">— Sin factura</span>'
+  })[estadoCorreo(f)];
+}
+async function marcarEnviado(mesIdx, filaIdx, grupo){
+  const m = DB.meses[mesIdx];
+  const filas = grupo ? m.filas.filter(f=>f.grupo) : [m.filas[filaIdx]];
+  const nuevo = !filas[0].correoEnviado;
+  filas.forEach(f=>{ f.correoEnviado = nuevo; });
+  saveDB(); await saveFacturacionSheets();
+  renderListaCorreos(); renderDashboard();
+  toast(nuevo ? '✓ Marcado como enviado' : '↩︎ Marcado como no enviado','s');
 }
 
 let _correoActual = {};
@@ -1803,6 +1850,12 @@ function verCorreoIndiv(idx, fi){
 
 async function crearBorradorGmail(){
   if(!_correoActual.para){ toast('Sin destinatario configurado','e'); return; }
+  {
+    const mm = DB.meses[_correoActual.mesIdx];
+    const filasC = _correoActual.esGrupo ? mm.filas.filter(f=>f.grupo) : [mm.filas[_correoActual.filaIdx]];
+    const faltan = filasC.filter(f=>!filaLista(f)).map(f=>f.razon);
+    if(faltan.length){ toast('Falta la factura (folio y PDF) de: ' + faltan.join(', '),'e'); return; }
+  }
 
   const btn = document.getElementById('btn-crear-borrador');
   btn.disabled = true;
@@ -1842,18 +1895,19 @@ async function crearBorradorGmail(){
     if(resp.ok){
       toast('✅ Borrador creado en Gmail de naguilar@trzl.cl','s');
 
-      // Marcar correo como enviado en la fila correspondiente
+      // Marcar 'borrador creado' (el envío lo hace Nancy desde Gmail)
       const m = DB.meses[_correoActual.mesIdx];
       if(_correoActual.esGrupo){
-        m.filas.filter(f=>f.grupo).forEach(f=>f.correoEnviado=true);
+        m.filas.filter(f=>f.grupo).forEach(f=>f.borrador=true);
       } else {
-        m.filas[_correoActual.filaIdx].correoEnviado = true;
+        m.filas[_correoActual.filaIdx].borrador = true;
       }
       saveDB();
       await saveFacturacionSheets();
       cerrarModal('modal-correo');
       renderFacturacion();
       renderDashboard();
+      if(paginaActual==='correos') renderListaCorreos();
     } else {
       toast('Error: ' + (resp.error||'Sin respuesta del script'),'e');
     }
@@ -1865,84 +1919,90 @@ async function crearBorradorGmail(){
   }
 }
 
-async function programarTodos(){
-  const m = DB.meses[mesSelIdx];
-  if(!m){ toast('No hay mes activo','w'); return; }
+// Crea borradores SOLO para filas con factura (folio + PDF), con email y sin borrador previo.
+async function crearBorradoresListos(){
+  const idx = parseInt(document.getElementById('correo-mes-sel').value);
+  const m = DB.meses[idx];
+  if(!m){ toast('No hay mes seleccionado','w'); return; }
 
-  // Filas pendientes (sin correo enviado)
-  const pendientes = m.filas.filter(f=>!f.correoEnviado);
-  if(!pendientes.length){ toast('Todos los correos ya fueron enviados ✅','s'); return; }
+  const listaFila = f => !f.correoEnviado && !f.borrador && filaLista(f);
+  const omitidas = [];
 
-  if(!confirm(`¿Crear ${pendientes.length} borrador(es) en Gmail para todos los clientes pendientes?`)) return;
-
-  const btn = document.querySelector('[onclick="programarTodos()"]');
-  if(btn){ btn.disabled=true; btn.textContent='⏳ Creando borradores...'; }
-
-  let creados = 0;
-  let errores = 0;
-
-  // Agrupar: primero el grupo Holdco/Tralka/Antu si hay pendientes
-  const grupoFilas = pendientes.filter(f=>f.grupo);
-  const individuales = pendientes.filter(f=>!f.grupo);
-
-  // Crear borrador del grupo si hay pendientes
-  if(grupoFilas.length > 0){
-    try {
-      const cli = DB.clientes.find(c=>c.clave==='Holdco')||{};
-      const correo = generarCuerpoCorreo(m, null, true, grupoFilas);
-      const asunto = generarAsunto(m, null, true);
-      const archivos = [];
-      grupoFilas.forEach(f=>{
-        if(f.pdfUrl && f.pdfUrl.startsWith('http')){
-          const match = f.pdfUrl.match(/[-\w]{25,}/);
-          if(match) archivos.push({ fileId: match[0], nombre: f.folio ? `FE-${f.folio} Terrazul - ${f.razon}.pdf` : `${f.razon}.pdf` });
-        }
-      });
-      const resp = await apiCorreos({
-        action: 'crear-borrador',
-        para: cli.email1||'',
-        cc: cli.cc||'',
-        asunto, cuerpo: correo.html, archivos
-      });
-      if(resp.ok){
-        grupoFilas.forEach(f=>f.correoEnviado=true);
-        creados++;
-      } else { errores++; }
-    } catch(e){ errores++; console.error('Error grupo:', e); }
+  // Grupo: solo si TODAS sus facturas están listas
+  const grupoTodas = m.filas.filter(f=>f.grupo);
+  const grupoPend  = grupoTodas.filter(f=>!f.correoEnviado && !f.borrador);
+  let incluirGrupo = false;
+  if(grupoPend.length){
+    if(grupoTodas.every(filaLista)) incluirGrupo = true;
+    else omitidas.push('Grupo Holdco/Tralka/Antu (faltan facturas)');
   }
 
-  // Crear borradores individuales
+  const individuales = [];
+  m.filas.filter(f=>!f.grupo && !f.correoEnviado && !f.borrador).forEach(f=>{
+    const cli = DB.clientes.find(c=>c.clave===f.clave)||{};
+    if(!filaLista(f)) omitidas.push(`${f.razon} (sin factura)`);
+    else if(![cli.email1,cli.email2].some(Boolean)) omitidas.push(`${f.razon} (sin email)`);
+    else individuales.push(f);
+  });
+
+  const total = individuales.length + (incluirGrupo?1:0);
+  if(!total){ toast(omitidas.length ? 'No hay borradores listos. Omitidas: '+omitidas.join(', ') : 'No hay correos pendientes ✅','w'); return; }
+  const lista = [...(incluirGrupo?['Grupo Holdco/Tralka/Antu']:[]), ...individuales.map(f=>f.razon)];
+  if(!confirm(`Se crearán ${total} borrador(es) en Gmail (no se envía nada):\n\n• ${lista.join('\n• ')}` + (omitidas.length?`\n\nSe omiten:\n• ${omitidas.join('\n• ')}`:'') + '\n\n¿Continuar?')) return;
+
+  const btn = document.getElementById('btn-borradores-listos');
+  if(btn){ btn.disabled=true; btn.textContent='⏳ Creando borradores...'; }
+  let creados=0, errores=[];
+  const adjunto = f => { const mt=f.pdfUrl.match(/[-\w]{25,}/); return mt ? { fileId:mt[0], nombre:`FE-${f.folio} Terrazul - ${f.razon} ${padMes(m.mes)}-${m.anio}.pdf` } : null; };
+
+  if(incluirGrupo){
+    try {
+      const cli = DB.clientes.find(c=>c.clave==='Holdco')||{};
+      const correo = generarCuerpoCorreo(m, null, true, grupoTodas);
+      const resp = await apiCorreos({ action:'crear-borrador', para: cli.email1||'', cc: cli.cc||'',
+        asunto: generarAsunto(m, null, true), cuerpo: correo.html, archivos: grupoTodas.map(adjunto).filter(Boolean) });
+      if(resp.ok){ grupoTodas.forEach(f=>f.borrador=true); creados++; } else errores.push('Grupo: '+(resp.error||'error'));
+    } catch(e){ errores.push('Grupo: '+e.message); }
+  }
   for(const f of individuales){
     try {
       const cli = DB.clientes.find(c=>c.clave===f.clave)||{};
       const correo = generarCuerpoCorreo(m, f, false, null);
-      const asunto = generarAsunto(m, f, false);
-      const archivos = [];
-      if(f.pdfUrl && f.pdfUrl.startsWith('http')){
-        const match = f.pdfUrl.match(/[-\w]{25,}/);
-        if(match) archivos.push({ fileId: match[0], nombre: f.folio ? `FE-${f.folio} Terrazul - ${f.razon}.pdf` : `${f.razon}.pdf` });
-      }
-      const para = [cli.email1, cli.email2].filter(Boolean).join(',');
-      const resp = await apiCorreos({
-        action: 'crear-borrador',
-        para, cc: cli.cc||'',
-        asunto, cuerpo: correo.html, archivos
-      });
-      if(resp.ok){ f.correoEnviado=true; creados++; }
-      else { errores++; }
-    } catch(e){ errores++; console.error('Error individual:', f.razon, e); }
+      const resp = await apiCorreos({ action:'crear-borrador', para:[cli.email1,cli.email2].filter(Boolean).join(','), cc: cli.cc||'',
+        asunto: generarAsunto(m, f, false), cuerpo: correo.html, archivos: [adjunto(f)].filter(Boolean) });
+      if(resp.ok){ f.borrador=true; creados++; } else errores.push(f.razon+': '+(resp.error||'error'));
+    } catch(e){ errores.push(f.razon+': '+e.message); }
   }
 
-  saveDB();
-  await saveFacturacionSheets();
-  renderDashboard();
+  saveDB(); await saveFacturacionSheets();
+  renderListaCorreos(); renderDashboard();
+  if(btn){ btn.disabled=false; btn.textContent='✉️ Crear borradores listos'; }
+  toast(errores.length ? `✅ ${creados} creados · ⚠️ ${errores.join(' | ')}` : `✅ ${creados} borrador(es) creados en Gmail`, errores.length?'w':'s');
+}
 
-  if(btn){ btn.disabled=false; btn.textContent='📅 Programar todos (día 5, 8:30 AM)'; }
-
-  if(errores===0){
-    toast(`✅ ${creados} borrador(es) creados en Gmail`,'s');
-  } else {
-    toast(`✅ ${creados} creados · ⚠️ ${errores} con error`,'w');
+// Revisa en Gmail (enviados) qué correos con borrador ya salieron, y los marca como enviados.
+async function verificarEnvios(){
+  const idx = parseInt(document.getElementById('correo-mes-sel').value);
+  const m = DB.meses[idx];
+  if(!m){ toast('No hay mes seleccionado','w'); return; }
+  const porRevisar = m.filas.filter(f=>!f.correoEnviado && String(f.folio||'').trim());
+  if(!porRevisar.length){ toast('No hay correos por verificar ✅','s'); return; }
+  const btn = document.getElementById('btn-verificar-envios');
+  if(btn){ btn.disabled=true; btn.textContent='⏳ Verificando...'; }
+  try {
+    const resp = await apiCorreos({ action:'verificar-envios', folios: porRevisar.map(f=>String(f.folio).trim()), desdeDias: 120 });
+    if(resp.error){
+      toast(/no reconocida/i.test(resp.error) ? 'Actualiza el script de Correos para verificar envíos automáticamente. Mientras, usa "✓ Marcar enviado".' : 'Error: '+resp.error,'w');
+      return;
+    }
+    const enviados = new Set((resp.enviados||[]).map(String));
+    let n=0;
+    porRevisar.forEach(f=>{ if(enviados.has(String(f.folio).trim())){ f.correoEnviado=true; n++; } });
+    if(n){ saveDB(); await saveFacturacionSheets(); }
+    renderListaCorreos(); renderDashboard();
+    toast(n ? `✓ ${n} correo(s) confirmados como enviados` : 'Aún no se envía ninguno de los pendientes','s');
+  } finally {
+    if(btn){ btn.disabled=false; btn.textContent='🔄 Verificar envíos'; }
   }
 }
 
@@ -2344,6 +2404,7 @@ function abrirModalCliente(i){
   document.getElementById('cli-email1').value = c ? (c.email1||'') : '';
   document.getElementById('cli-email2').value = c ? (c.email2||'') : '';
   document.getElementById('cli-cc').value = c ? (c.cc||'') : '';
+  document.getElementById('cli-saludo').value = c ? (c.saludo||'') : '';
   document.getElementById('cli-grupo').checked = c ? (c.grupo||false) : false;
   document.getElementById('cli-activo').checked = c ? (c.activo !== false) : true;
   document.getElementById('cli-grupo-info').style.display = (c && c.grupo) ? 'block' : 'none';
@@ -2382,6 +2443,7 @@ async function guardarCliente(){
     email1: document.getElementById('cli-email1').value.trim(),
     email2: document.getElementById('cli-email2').value.trim(),
     cc: document.getElementById('cli-cc').value.trim(),
+    saludo: document.getElementById('cli-saludo').value.trim(),
     grupo: document.getElementById('cli-grupo').checked,
     activo: document.getElementById('cli-activo').checked,
     desdeMes:  parseInt(document.getElementById('cli-desde-mes').value)||null,
@@ -2937,8 +2999,8 @@ async function syncClientes(){
     await apiPost({ action:'write', sheet:'Clientes', data:rows });
 
     // Sincronizar contactos también
-    const rowsK = [['clave','contacto','email1','email2','cc']];
-    DB.clientes.forEach(c => rowsK.push([c.clave,c.contacto||'',c.email1||'',c.email2||'',c.cc||'']));
+    const rowsK = [['clave','contacto','email1','email2','cc','saludo']];
+    DB.clientes.forEach(c => rowsK.push([c.clave,c.contacto||'',c.email1||'',c.email2||'',c.cc||'',c.saludo||'']));
     await apiPost({ action:'write', sheet:'Contactos', data:rowsK });
   } catch(e){ console.warn('syncClientes:', e); }
 }
